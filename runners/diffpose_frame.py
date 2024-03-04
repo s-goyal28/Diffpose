@@ -154,17 +154,17 @@ class Diffpose(object):
             
             epoch_loss_diff = AverageMeter()
 
-            for i, (targets_uvxyz, targets_noise_scale, _, targets_3d, _, _) in enumerate(data_loader):
+            for i, (targets_uvxy, targets_noise_scale, _, targets_2d, _, _) in enumerate(data_loader):
                 data_time += time.time() - data_start
                 step += 1
 
                 # to cuda
-                targets_uvxyz, targets_noise_scale, targets_3d = \
-                    targets_uvxyz.to(self.device), targets_noise_scale.to(self.device), targets_3d.to(self.device)
+                targets_uvxy, targets_noise_scale, targets_2d = \
+                    targets_uvxy.to(self.device), targets_noise_scale.to(self.device), targets_2d.to(self.device)
                 
                 # generate nosiy sample based on seleted time t and beta
-                n = targets_3d.size(0)
-                x = targets_uvxyz
+                n = targets_2d.size(0)
+                x = targets_uvxy
                 e = torch.randn_like(x)
                 b = self.betas            
                 t = torch.randint(low=0, high=self.num_timesteps,
@@ -177,7 +177,7 @@ class Diffpose(object):
                 
                 # predict noise
                 output_noise = self.model_diff(x, src_mask, t.float(), 0)
-                loss_diff = (e - output_noise).square().sum(dim=(1, 2)).mean(dim=0)
+                loss_diff = (e - output_noise).square().sum(dim=(1, 2)).mean(dim=0) # Check this sum on dims
                 
                 optimizer.zero_grad()
                 loss_diff.backward()

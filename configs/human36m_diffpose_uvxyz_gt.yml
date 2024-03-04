@@ -9,7 +9,7 @@ data:
 model:
     hid_dim: 96
     emd_dim: 96
-    coords_dim: [5,5]
+    coords_dim: [4,4]
     num_layer: 5
     n_head: 4
     dropout: 0.25
