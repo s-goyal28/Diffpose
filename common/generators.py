@@ -42,7 +42,7 @@ class PoseGenerator_gmm(Dataset):
         out_pose_uvxy = torch.from_numpy(out_pose_uvxy).float()
         out_pose_noise_scale = torch.from_numpy(out_pose_noise_scale).float()
         out_pose_2d_mean = torch.from_numpy(kernel_mean).float()
-        out_pose_3d = torch.from_numpy(out_pose_3d).float()
+        out_pose_2d = torch.from_numpy(out_pose_2d).float()
         out_camerapara = torch.from_numpy(out_camerapara).float()
         
         return out_pose_uvxy, out_pose_noise_scale, out_pose_2d_mean, out_pose_2d, out_action, out_camerapara
