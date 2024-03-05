@@ -268,43 +268,43 @@ class Diffpose(object):
             'SittingDown','Smoking','Waiting','WalkDog','Walking','WalkTogether']
         action_error_sum = define_error_list(self.test_action_list)        
 
-        for i, (_, input_noise_scale, input_2d, targets_3d, input_action, camera_para) in enumerate(data_loader):
+        for i, (_, input_noise_scale, input_2d, targets_2d, input_action, camera_para) in enumerate(data_loader):
             data_time += time.time() - data_start
 
-            input_noise_scale, input_2d, targets_3d = \
-                input_noise_scale.to(self.device), input_2d.to(self.device), targets_3d.to(self.device)
+            input_noise_scale, input_2d, targets_2d = \
+                input_noise_scale.to(self.device), input_2d.to(self.device), targets_2d.to(self.device)
 
             # build uvxyz
-            inputs_xyz = self.model_pose(input_2d, src_mask)            
-            inputs_xyz[:, :, :] -= inputs_xyz[:, :1, :] 
-            input_uvxyz = torch.cat([input_2d,inputs_xyz],dim=2)
+            inputs_xy = self.model_pose(input_2d, src_mask)            
+            inputs_xy[:, :, :2] -= inputs_xy[:, :1, :2] 
+            input_uvxy = torch.cat([input_2d,inputs_xy],dim=2)
                         
             # generate distribution
-            input_uvxyz = input_uvxyz.repeat(test_times,1,1)
+            input_uvxy = input_uvxy.repeat(test_times,1,1)
             input_noise_scale = input_noise_scale.repeat(test_times,1,1)
             # select diffusion step
-            t = torch.ones(input_uvxyz.size(0)).type(torch.LongTensor).to(self.device)*test_num_diffusion_timesteps
+            t = torch.ones(input_uvxy.size(0)).type(torch.LongTensor).to(self.device)*test_num_diffusion_timesteps
             
             # prepare the diffusion parameters
-            x = input_uvxyz.clone()
-            e = torch.randn_like(input_uvxyz)
+            x = input_uvxy.clone()
+            e = torch.randn_like(input_uvxy)
             b = self.betas   
             e = e*input_noise_scale        
             a = (1-b).cumprod(dim=0).index_select(0, t).view(-1, 1, 1)
             # x = x * a.sqrt() + e * (1.0 - a).sqrt()
             
-            output_uvxyz = generalized_steps(x, src_mask, seq, self.model_diff, self.betas, eta=self.args.eta)
-            output_uvxyz = output_uvxyz[0][-1]            
-            output_uvxyz = torch.mean(output_uvxyz.reshape(test_times,-1,17,5),0)
-            output_xyz = output_uvxyz[:,:,2:]
-            output_xyz[:, :, :] -= output_xyz[:, :1, :]
-            targets_3d[:, :, :] -= targets_3d[:, :1, :]
-            epoch_loss_3d_pos.update(mpjpe(output_xyz, targets_3d).item() * 1000.0, targets_3d.size(0))
-            epoch_loss_3d_pos_procrustes.update(p_mpjpe(output_xyz.cpu().numpy(), targets_3d.cpu().numpy()).item() * 1000.0, targets_3d.size(0))\
+            output_uvxy = generalized_steps(x, src_mask, seq, self.model_diff, self.betas, eta=self.args.eta)
+            output_uvxy = output_uvxy[0][-1]            
+            output_uvxy = torch.mean(output_uvxy.reshape(test_times,-1,17,4),0)
+            output_xy = output_uvxy[:,:,2:]
+            output_xy[:, :, :] -= output_xy[:, :1, :]
+            targets_2d[:, :, :] -= targets_2d[:, :1, :]
+            epoch_loss_3d_pos.update(mpjpe(output_xy, targets_2d).item() * 1000.0, targets_2d.size(0))
+            epoch_loss_3d_pos_procrustes.update(p_mpjpe(output_xy.cpu().numpy(), targets_2d.cpu().numpy()).item() * 1000.0, targets_2d.size(0))\
             
             data_start = time.time()
             
-            action_error_sum = test_calculation(output_xyz, targets_3d, input_action, action_error_sum, None, None)
+            action_error_sum = test_calculation(output_xy, targets_2d, input_action, action_error_sum, None, None)
             
             if i%100 == 0 and i != 0:
                 logging.info('({batch}/{size}) Data: {data:.6f}s | MPJPE: {e1: .4f} | P-MPJPE: {e2: .4f}'\
