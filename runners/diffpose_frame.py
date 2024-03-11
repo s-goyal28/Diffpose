@@ -1,5 +1,6 @@
 import os
 import logging
+import subprocess
 import time
 import glob
 import argparse
@@ -222,6 +223,18 @@ class Diffpose(object):
                     best_epoch = epoch
                 logging.info('| Best Epoch: {:0>4d} MPJPE: {:.2f} | Epoch: {:0>4d} MPJEPE: {:.2f} PA-MPJPE: {:.2f} |'\
                     .format(best_epoch, best_p1, epoch, p1, p2))
+                
+                
+                #Saving Model to S3
+                # logging.info('Files in log path')
+                # subprocess.check_call(
+                #     ["aws", "s3", "ls", self.args.log_path]
+                # )
+                logging.info('Saving Checkpoint')
+                s3_model_dir = "s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/diffPose-2D/"
+                subprocess.check_call(
+                    ["aws", "s3", "cp", self.args.log_path, s3_model_dir, "--recursive"]
+                )
     
     def test_hyber(self, is_train=False):
         cudnn.benchmark = True
@@ -275,7 +288,9 @@ class Diffpose(object):
                 input_noise_scale.to(self.device), input_2d.to(self.device), targets_2d.to(self.device)
 
             # build uvxyz
-            inputs_xy = self.model_pose(input_2d, src_mask)            
+            inputs_xyz = self.model_pose(input_2d, src_mask)
+            inputs_xy = inputs_xyz[:, : , :2]
+            #print("inputs_xy", inputs_xy.shape)
             inputs_xy[:, :, :2] -= inputs_xy[:, :1, :2] 
             input_uvxy = torch.cat([input_2d,inputs_xy],dim=2)
                         
@@ -284,6 +299,12 @@ class Diffpose(object):
             input_noise_scale = input_noise_scale.repeat(test_times,1,1)
             # select diffusion step
             t = torch.ones(input_uvxy.size(0)).type(torch.LongTensor).to(self.device)*test_num_diffusion_timesteps
+            
+            
+            #print('Logging shapes')
+            #print("input_2d", input_2d.shape)
+            #print("inputs_xy", inputs_xy.shape)
+            #print("input_noise_scale", input_noise_scale.shape)
             
             # prepare the diffusion parameters
             x = input_uvxy.clone()
