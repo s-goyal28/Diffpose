@@ -23,6 +23,9 @@ from common.data_utils import fetch_me, read_3d_data_me, create_2d_data
 from common.generators import PoseGenerator_gmm
 from common.loss import mpjpe, p_mpjpe
 
+
+from transformers import AutoImageProcessor, ViTModel
+
 class Diffpose(object):
     def __init__(self, args, config, device=None):
         self.args = args
@@ -121,13 +124,17 @@ class Diffpose(object):
         best_p1, best_epoch = 1000, 0
         # skip rate when sample skeletons from video
         stride = self.args.downsample
+
+        image_processor = AutoImageProcessor.from_pretrained("vit-base-patch16-224-in21k")
+        vit_model = ViTModel.from_pretrained("vit-base-patch16-224-in21k")#, output_hidden_states=True)
+        vit_model = vit_model.to(self.device)
         
         # create dataloader
         if config.data.dataset == "human36m":
-            poses_train, poses_train_2d, actions_train, camerapara_train\
+            poses_train, poses_train_2d, actions_train, camerapara_train, out_image_paths_train\
                 = fetch_me(self.subjects_train, self.dataset, self.keypoints_train, self.action_filter, stride)
             data_loader = train_loader = data.DataLoader(
-                PoseGenerator_gmm(poses_train, poses_train_2d, actions_train, camerapara_train),
+                PoseGenerator_gmm(poses_train, poses_train_2d, actions_train, camerapara_train, out_image_paths_train, image_processor),
                 batch_size=config.training.batch_size, shuffle=True,\
                     num_workers=config.training.num_workers, pin_memory=True)
         else:
@@ -155,9 +162,18 @@ class Diffpose(object):
             
             epoch_loss_diff = AverageMeter()
 
-            for i, (targets_uvxy, targets_noise_scale, _, targets_2d, _, _) in enumerate(data_loader):
+            for i, (targets_uvxy, targets_noise_scale, _, targets_2d, _, _, image_feats) in enumerate(data_loader):
                 data_time += time.time() - data_start
                 step += 1
+
+                # Get image embeeding from ViT
+                input_feats = image_feats['pixel_values'].reshape((-1, 3, 224, 224))
+                input_feats = input_feats.to(self.device)
+                with torch.no_grad():
+                    outputs = vit_model(pixel_values = input_feats)
+
+                image_embeddings = outputs.last_hidden_state
+                print("image_embeddings shape", image_embeddings.shape)
 
                 # to cuda
                 targets_uvxy, targets_noise_scale, targets_2d = \

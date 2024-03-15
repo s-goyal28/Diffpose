@@ -5,9 +5,11 @@ import torch
 from torch.utils.data import Dataset
 from functools import reduce
 
+from PIL import Image
+
 
 class PoseGenerator_gmm(Dataset):
-    def __init__(self, poses_3d, poses_2d_gmm, actions, camerapara):
+    def __init__(self, poses_3d, poses_2d_gmm, actions, camerapara, image_paths, image_processor):
         assert poses_3d is not None
 
         self._poses_3d = np.concatenate(poses_3d)
@@ -15,6 +17,9 @@ class PoseGenerator_gmm(Dataset):
         self._actions = reduce(lambda x, y: x + y, actions)
         self._camerapara = np.concatenate(camerapara)
         self._kernel_n = self._poses_2d_gmm.shape[2]
+
+        self.image_paths = image_paths # ALready flattened on subjects, actions , cameras
+        self.image_processor = image_processor
 
         self._poses_3d[:,:,:] = self._poses_3d[:,:,:]-self._poses_3d[:,:1,:]
 
@@ -44,8 +49,12 @@ class PoseGenerator_gmm(Dataset):
         out_pose_2d_mean = torch.from_numpy(kernel_mean).float()
         out_pose_2d = torch.from_numpy(out_pose_2d).float()
         out_camerapara = torch.from_numpy(out_camerapara).float()
+
+        # load image
+        image = Image.open(self.image_paths[index])
+        image_feats = self.image_processor(image, return_tensors="pt")
         
-        return out_pose_uvxy, out_pose_noise_scale, out_pose_2d_mean, out_pose_2d, out_action, out_camerapara
+        return out_pose_uvxy, out_pose_noise_scale, out_pose_2d_mean, out_pose_2d, out_action, out_camerapara, image_feats
 
     def __len__(self):
         return len(self._actions)
