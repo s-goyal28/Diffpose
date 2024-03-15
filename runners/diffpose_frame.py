@@ -172,7 +172,7 @@ class Diffpose(object):
                 with torch.no_grad():
                     outputs = vit_model(pixel_values = input_feats)
 
-                image_embeddings = outputs.last_hidden_state
+                image_features = outputs.last_hidden_state
                 print("image_embeddings shape", image_embeddings.shape)
 
                 # to cuda
@@ -193,7 +193,7 @@ class Diffpose(object):
                 x = x * a.sqrt() + e * (1.0 - a).sqrt()
                 
                 # predict noise
-                output_noise = self.model_diff(x, src_mask, t.float(), 0)
+                output_noise = self.model_diff(x, src_mask, t.float(), image_features)
                 loss_diff = (e - output_noise).square().sum(dim=(1, 2)).mean(dim=0) # Check this sum on dims
                 
                 optimizer.zero_grad()

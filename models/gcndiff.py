@@ -44,11 +44,12 @@ class _ResChebGC_diff(nn.Module):
         self.gconv2 = _GraphConv(hid_dim, output_dim, p_dropout)
         ### time embedding ###
         self.temb_proj = torch.nn.Linear(emd_dim,hid_dim)
+        self.img_emb_proj = torch.nn.Linear(emd_dim,hid_dim)
 
-    def forward(self, x, temb):
+    def forward(self, x, temb, img_emb):
         residual = x
         out = self.gconv1(x, self.adj)
-        out = out + self.temb_proj(nonlinearity(temb))[:, None, :]
+        out = out + self.temb_proj(nonlinearity(temb))[:, None, :] + self.img_emb_proj(nonlinearity(img_emb))[:, None, :]
         out = self.gconv2(out, self.adj)
         return residual + out
 
@@ -96,18 +97,33 @@ class GCNdiff(nn.Module):
             torch.nn.Linear(self.hid_dim,self.emd_dim),
             torch.nn.Linear(self.emd_dim,self.emd_dim),
         ])
+
+        ### Image Feature flatten and dimension reduction
+        self.img_emb_layer = nn.ModuleList([
+            torch.nn.Flatten(),
+
+            torch.nn.Linear(197*768, 197*192),
+            torch.nn.Sigmoid(),
+            torch.nn.Dropout(p=0.1),
+            torch.nn.Linear(197*192,197*48),
+            torch.nn.Sigmoid(),
+            torch.nn.Dropout(p=0.1),
+            torch.nn.Linear(197*88,self.emd_dim),
+        ])
         
 
-    def forward(self, x, mask, t, cemd):
+    def forward(self, x, mask, t, img_feats):
         # timestep embedding
         temb = get_timestep_embedding(t, self.hid_dim)
         temb = self.temb.dense[0](temb)
         temb = nonlinearity(temb)
         temb = self.temb.dense[1](temb)
+
+        img_emd = self.img_emb_layer(img_feats)
         
         out = self.gconv_input(x, self.adj)
         for i in range(self.n_layers):
             out = self.atten_layers[i](out, mask)
-            out = self.gconv_layers[i](out, temb)
+            out = self.gconv_layers[i](out, temb, img_emd)
         out = self.gconv_output(out, self.adj)
         return out
