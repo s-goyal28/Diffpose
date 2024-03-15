@@ -99,17 +99,20 @@ class GCNdiff(nn.Module):
         ])
 
         ### Image Feature flatten and dimension reduction
-        self.img_emb_layer = nn.ModuleList([
-            torch.nn.Flatten(),
+        self.img_emb_layer = nn.Module()
+        self.img_emb_layer.dense = nn.ModuleList([
+            #torch.nn.Flatten(),
 
-            torch.nn.Linear(197*768, 197*192),
-            torch.nn.Sigmoid(),
-            torch.nn.Dropout(p=0.1),
-            torch.nn.Linear(197*192,197*48),
-            torch.nn.Sigmoid(),
-            torch.nn.Dropout(p=0.1),
-            torch.nn.Linear(197*88,self.emd_dim),
+            torch.nn.Linear(197*768, 2048),
+            # torch.nn.Sigmoid(),
+            # torch.nn.Dropout(p=0.1),
+            # torch.nn.Linear(197*192,197*48),
+            #torch.nn.Sigmoid(),
+            #torch.nn.Dropout(p=0.1),
+            torch.nn.Linear(2048,self.emd_dim),
         ])
+        self.img_flatten = torch.nn.Flatten()
+        self.img_drop = torch.nn.Dropout(p=0.1)
         
 
     def forward(self, x, mask, t, img_feats):
@@ -119,7 +122,11 @@ class GCNdiff(nn.Module):
         temb = nonlinearity(temb)
         temb = self.temb.dense[1](temb)
 
-        img_emd = self.img_emb_layer(img_feats)
+        img_emd = self.img_flatten(img_feats)
+        img_emd = self.img_emb_layer.dense[0](img_emd)
+        img_emd = nonlinearity(img_emd)
+        img_emd = self.img_drop(img_emd)
+        img_emd = self.img_emb_layer.dense[1](img_emd)
         
         out = self.gconv_input(x, self.adj)
         for i in range(self.n_layers):

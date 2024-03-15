@@ -173,7 +173,7 @@ class Diffpose(object):
                     outputs = vit_model(pixel_values = input_feats)
 
                 image_features = outputs.last_hidden_state
-                print("image_embeddings shape", image_embeddings.shape)
+                print("image_features shape", image_features.shape)
 
                 # to cuda
                 targets_uvxy, targets_noise_scale, targets_2d = \
