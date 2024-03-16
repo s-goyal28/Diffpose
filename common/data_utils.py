@@ -3,6 +3,8 @@ import os
 import subprocess
 
 import numpy as np
+from boto3.session import Session as BotoSession
+from botocore.exceptions import ClientError
 
 from .camera import world_to_camera, normalize_screen_coordinates
 
@@ -21,7 +23,10 @@ mapping = {'S1': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directi
 #images_base_path = "/root/IISc/SOTA/learnable_triangulation/learnable-triangulation-pytorch/data/human36m/processed"
 
 # For instance run
-images_base_path = '/dataset/human36m/processed'
+#images_base_path = '/dataset/human36m/processed'
+
+# For downloading in Dataloader
+images_base_path = 'human36m/processed/'
 
 def download_data(train_subjects, test_subjects, all_data):
     if not os.path.exists("/dataset/"):
@@ -30,6 +35,8 @@ def download_data(train_subjects, test_subjects, all_data):
         os.makedirs("/dataset/human36m/")
     if not os.path.exists("/dataset/human36m/processed/"):
         os.makedirs("/dataset/human36m/processed/")
+
+    return
 
     if all_data:
         s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/human36m/processed/"
@@ -51,6 +58,140 @@ def download_data(train_subjects, test_subjects, all_data):
                 s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/human36m/processed/{subject}/{action}"
                 local_path = f"/dataset/human36m/processed/{subject}/{action}/"
                 subprocess.check_call(["aws", "s3", "cp", s3_path, local_path, "--recursive"])
+
+
+boto_creds = {
+    'fs.s3a.endpoint' : 's3.amazonaws.com',
+    'fs.s3a.region' : 'us-east-1'
+}
+def create_boto3_session(s3_creds):
+    """
+    Creates AWS Boto session to access S3
+    Args:
+        :param s3_creds: <dict> access key, secret key and region name to access S3
+        :return: returns a boto session object
+    """
+    if "fs.s3a.access.key" in s3_creds.keys():
+        boto_session = BotoSession(
+            aws_access_key_id=s3_creds["fs.s3a.access.key"],
+            aws_secret_access_key=s3_creds["fs.s3a.secret.key"],
+            region_name=s3_creds["fs.s3a.region"],
+        )
+    else:
+        boto_session = BotoSession(region_name=s3_creds["fs.s3a.region"])
+
+    return boto_session
+
+
+class S3Boto(object):
+    """
+    Class for Boto3 to load, save data and list files in s3
+    """
+
+    def __init__(self, boto_session, bucket):
+        self.boto = boto_session.resource("s3")
+        self.bucket = bucket
+
+    def list_files(
+        self,
+        data_path=None,
+        recursive=False,
+        list_dirs=False,
+        list_objs=True,
+        limit=None,
+        full_path=True,
+        s3_prefix="s3://",
+    ):
+        """
+        Lists all files in given S3 path
+        Args:
+            :param data_path: Path to folder in which we need to list all files
+            :param recursive: If true, list all objects; if false, list "depth-0" directories or objects
+            :param list_dirs: Has no effect when recursive=True. For non-recursive listing, if false,
+                              directories will not be included
+            :param list_objs: If false, objects will not be included
+            :param limit: Optional. If specified, then lists at most this many items.
+            :param full_path: Appends the s3:// and the bucket to every file path in the given directory
+            :param s3_prefix: The prefix to prepend to path
+            :return: List of file paths in given S3 folder
+        """
+        results = []
+
+        kwargs = dict()
+        kwargs.update(Bucket=self.bucket)
+        kwargs.update(RequestPayer="requester")
+
+        if data_path is not None:
+            if not data_path.endswith("/"):
+                data_path += "/"
+            kwargs.update(Prefix=data_path)
+
+        if not recursive:
+            kwargs.update(Delimiter="/")
+
+        if limit is not None:
+            kwargs.update(MaxKeys=limit)
+        # print(f"Boto3 parameters for listing files {kwargs}")
+        _objects = self.boto.Bucket(self.bucket).meta.client.list_objects_v2(
+            **kwargs
+        )
+
+        if list_dirs and ("CommonPrefixes" in _objects):
+            for _obj in _objects.get("CommonPrefixes"):
+                _path = _obj.get("Prefix")
+                results.append(_path)
+
+        if list_objs and ("Contents" in _objects):
+            for _obj in _objects.get("Contents"):
+                _path = _obj.get("Key")
+                results.append(_path)
+
+        if full_path:
+            results = [
+                s3_prefix + self.bucket + "/" + _path for _path in results
+            ]
+
+        return results
+
+    def path_exists(self, path):
+        """
+        check if file/folder exists
+        Args:
+            :param path: Path to file/folder that needs to be checked
+            :return: Bool
+        """
+
+        try:
+            self.boto.Object(self.bucket, path).load(RequestPayer="requester")
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "404":
+                # The object does not exist.
+                print(f"file {path} not found")
+            return False
+        return True
+
+    def copy_file(self: "S3Boto", path: str, dest_bucket: str, dest_path: str):
+        """
+        copy file to dest bucket
+        Args:
+            :param path: Path to file that needs to be copied
+            :param dest_bucket: Destination bucket
+            :param dest_path: Destination path
+        """
+
+        copy_source = {"Bucket": self.bucket, "Key": path}
+        extra_args = {
+            "RequestPayer": "requester",
+            "ACL": "bucket-owner-full-control",
+        }
+
+        try:
+            self.boto.meta.client.copy(
+                copy_source, dest_bucket, dest_path, extra_args
+            )
+        except ClientError as ex:
+            raise ex
+        
 
 
 def read_3d_data(dataset):
@@ -208,6 +349,9 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
 
 
             # Get image paths
+            boto_session = create_boto3_session(boto_creds)
+            boto_io = S3Boto(boto_session, 'pi-expt-use1-dev')
+
             if subject == 'S1' and 'Photo' in action:
                 folder_action = action.split(' ')[0] + '-' + subject_mapping[action.replace('Photo', 'TakingPhoto')][1]
             elif subject == 'S1' and 'WalkDog' in action:
@@ -225,9 +369,10 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
             
             cameras = ['54138969', '55011271', '58860488', '60457274']
             for i, cam in enumerate(cameras):
-                file_list = os.listdir(f"{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
-                file_list = [file for file in file_list if file[0] != '.']
-                indexes = np.array([int(file.split('.')[0].split('_')[1]) - 1 for file in file_list])
+                #file_list = os.listdir(f"{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
+                file_list = boto_io.list_files(f"ml_forecasting/s.goyal/IISc/data/{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
+                file_list = [file for file in file_list if file.split('/')[-1][0] != '.']
+                indexes = np.array([int(file.split('/')[-1].split('.')[0].split('_')[1]) - 1 for file in file_list])
                 indexes.sort()
 
                 img_file_names = [f"{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}/" + "img_%06d.jpg" % (idx+1) for idx in indexes]
