@@ -8,10 +8,18 @@ import os
 import torch
 import numpy as np
 
+
+import subprocess
+import sys
+subprocess.check_call(
+    [sys.executable, "-m", "pip", "install", "transformers"]
+)
+
 from runners.diffpose_frame import Diffpose
 
 
 torch.set_printoptions(sci_mode=False)
+
 
 
 def parse_args_and_config():
@@ -163,6 +171,7 @@ def dict2namespace(config):
 
 
 def main():
+    
     args, config = parse_args_and_config()
     logging.info("Writing log file to {}".format(args.log_path))
     logging.info("Exp instance id = {}".format(os.getpid()))
