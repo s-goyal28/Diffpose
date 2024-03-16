@@ -25,7 +25,8 @@ class PoseGenerator_gmm(Dataset):
 
         self._poses_3d[:,:,:] = self._poses_3d[:,:,:]-self._poses_3d[:,:1,:]
 
-        assert self._poses_3d.shape[0] == self._poses_2d_gmm.shape[0] and self._poses_3d.shape[0] == len(self._actions)
+        print(len(image_paths), self._poses_3d.shape[0])
+        assert self._poses_3d.shape[0] == self._poses_2d_gmm.shape[0] and self._poses_3d.shape[0] == len(self._actions) == len(image_paths)
         print('Generating {} poses...'.format(len(self._actions)))
 
     def __getitem__(self, index):

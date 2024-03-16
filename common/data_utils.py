@@ -89,7 +89,7 @@ class S3Boto(object):
     """
 
     def __init__(self, boto_session, bucket):
-        self.boto = boto_session.resource("s3")
+        self.boto = boto_session.client("s3")
         self.bucket = bucket
 
     def list_files(
@@ -131,26 +131,35 @@ class S3Boto(object):
 
         if limit is not None:
             kwargs.update(MaxKeys=limit)
+            
+        kwargs.update(PaginationConfig={"PageSize": 1000})
+        paginator = self.boto.get_paginator("list_objects_v2")
+        response = paginator.paginate(**kwargs) #Bucket=self.bucket, PaginationConfig={"PageSize": 400})
+        for _objects in response:
+            
         # print(f"Boto3 parameters for listing files {kwargs}")
-        _objects = self.boto.Bucket(self.bucket).meta.client.list_objects_v2(
-            **kwargs
-        )
+        
+        # _objects = self.boto.Bucket(self.bucket).meta.client.list_objects_v2(
+        #     **kwargs
+        # )
 
-        if list_dirs and ("CommonPrefixes" in _objects):
-            for _obj in _objects.get("CommonPrefixes"):
-                _path = _obj.get("Prefix")
-                results.append(_path)
+            if list_dirs and ("CommonPrefixes" in _objects):
+                for _obj in _objects.get("CommonPrefixes"):
+                    _path = _obj.get("Prefix")
+                    results.append(_path)
 
-        if list_objs and ("Contents" in _objects):
-            for _obj in _objects.get("Contents"):
-                _path = _obj.get("Key")
-                results.append(_path)
+            if list_objs and ("Contents" in _objects):
+                for _obj in _objects.get("Contents"):
+                    _path = _obj.get("Key")
+                    results.append(_path)
+        
 
         if full_path:
             results = [
                 s3_prefix + self.bucket + "/" + _path for _path in results
             ]
-
+            
+        print(f"List files Done for path : {data_path}")
         return results
 
     def path_exists(self, path):
@@ -369,6 +378,9 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
                 #file_list = os.listdir(f"{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
                 file_list = boto_io.list_files(f"ml_forecasting/s.goyal/IISc/data/{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
                 file_list = [file for file in file_list if file.split('/')[-1][0] != '.']
+                if len(file_list) != poses_2d[i].shape[0]:
+                    print(f"ml_forecasting/s.goyal/IISc/data/{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
+                    print(len(file_list), poses_2d[i].shape[0])
                 indexes = np.array([int(file.split('/')[-1].split('.')[0].split('_')[1]) - 1 for file in file_list])
                 indexes.sort()
 
