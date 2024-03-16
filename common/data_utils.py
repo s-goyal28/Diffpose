@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division
 import os
 import subprocess
+import multiprocessing 
 
 import numpy as np
 from boto3.session import Session as BotoSession
@@ -17,7 +18,7 @@ camera_dict = {
 
 
 mapping = {'S1': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directions 1', ('2', '2'): 'Directions', ('3', '1'): 'Discussion 1', ('3', '2'): 'Discussion', ('4', '1'): 'Eating 2', ('4', '2'): 'Eating', ('5', '1'): 'Greeting 1', ('5', '2'): 'Greeting', ('6', '1'): 'Phoning 1', ('6', '2'): 'Phoning', ('7', '1'): 'Posing 1', ('7', '2'): 'Posing', ('8', '1'): 'Purchases 1', ('8', '2'): 'Purchases', ('9', '1'): 'Sitting 1', ('9', '2'): 'Sitting 2', ('10', '1'): 'SittingDown 2', ('10', '2'): 'SittingDown', ('11', '1'): 'Smoking 1', ('11', '2'): 'Smoking', ('12', '1'): 'TakingPhoto 1', ('12', '2'): 'TakingPhoto', ('13', '1'): 'Waiting 1', ('13', '2'): 'Waiting', ('14', '1'): 'Walking 1', ('14', '2'): 'Walking', ('15', '1'): 'WalkingDog 1', ('15', '2'): 'WalkingDog', ('16', '1'): 'WalkTogether 1', ('16', '2'): 'WalkTogether'}, 'S2': {('1', '1'): '_ALL 2', ('1', '2'): '_ALL 1', ('2', '1'): 'Directions 1', ('2', '2'): 'Directions', ('3', '1'): 'Discussion 1', ('3', '2'): 'Discussion', ('4', '1'): 'Eating 1', ('4', '2'): 'Eating 2', ('5', '1'): 'Greeting 1', ('5', '2'): 'Greeting', ('6', '1'): 'Phoning 1', ('6', '2'): 'Phoning', ('7', '1'): 'Posing 1', ('7', '2'): 'Posing', ('8', '1'): 'Purchases 1', ('8', '2'): 'Purchases', ('9', '1'): 'Sitting 1', ('9', '2'): 'Sitting', ('10', '1'): 'SittingDown 2', ('10', '2'): 'SittingDown 3', ('11', '1'): 'Smoking 1', ('11', '2'): 'Smoking', ('12', '1'): 'Photo 1', ('12', '2'): 'Photo', ('13', '1'): 'Waiting 1', ('13', '2'): 'Waiting', ('14', '1'): 'Walking 1', ('14', '2'): 'Walking', ('15', '1'): 'WalkDog 1', ('15', '2'): 'WalkDog', ('16', '1'): 'WalkTogether 1', ('16', '2'): 'WalkTogether'}, 'S3': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directions 1', ('2', '2'): 'Directions', ('3', '1'): 'Discussion 1', ('3', '2'): 'Discussion', ('4', '1'): 'Eating 1', ('4', '2'): 'Eating 2', ('5', '1'): 'Greeting 1', ('5', '2'): 'Greeting', ('6', '1'): 'Phoning 1', ('6', '2'): 'Phoning', ('7', '1'): 'Posing 1', ('7', '2'): 'Posing 2', ('8', '1'): 'Purchases 1', ('8', '2'): 'Purchases', ('9', '1'): 'Sitting 1', ('9', '2'): 'Sitting', ('10', '1'): 'SittingDown 1', ('10', '2'): 'SittingDown', ('11', '1'): 'Smoking 1', ('11', '2'): 'Smoking', ('12', '1'): 'Photo 1', ('12', '2'): 'Photo', ('13', '1'): 'Waiting 1', ('13', '2'): 'Waiting', ('14', '1'): 'Walking 1', ('14', '2'): 'Walking 2', ('15', '1'): 'WalkDog 1', ('15', '2'): 'WalkDog', ('16', '1'): 'WalkTogether 1', ('16', '2'): 'WalkTogether'}, 'S4': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directions 1', ('2', '2'): 'Directions', ('3', '1'): 'Discussion 1', ('3', '2'): 'Discussion', ('4', '1'): 'Eating 1', ('4', '2'): 'Eating', ('5', '1'): 'Greeting 1', ('5', '2'): 'Greeting', ('6', '1'): 'Phoning 1', ('6', '2'): 'Phoning', ('7', '1'): 'Posing 1', ('7', '2'): 'Posing', ('8', '1'): 'Purchases 1', ('8', '2'): 'Purchases', ('9', '1'): 'Sitting 1', ('9', '2'): 'Sitting', ('10', '1'): 'SittingDown 1', ('10', '2'): 'SittingDown 2', ('11', '1'): 'Smoking 1', ('11', '2'): 'Smoking', ('12', '1'): 'Photo 1', ('12', '2'): 'Photo', ('13', '1'): 'Waiting 1', ('13', '2'): 'Waiting', ('14', '1'): 'Walking 1', ('14', '2'): 'Walking', ('15', '1'): 'WalkDog 1', ('15', '2'): 'WalkDog', ('16', '1'): 'WalkTogether 2', ('16', '2'): 'WalkTogether 3'}, 'S5': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directions 1', ('2', '2'): 'Directions 2', ('3', '1'): 'Discussion 2', ('3', '2'): 'Discussion 3', ('4', '1'): 'Eating 1', ('4', '2'): 'Eating', ('5', '1'): 'Greeting 1', ('5', '2'): 'Greeting 2', ('6', '1'): 'Phoning 1', ('6', '2'): 'Phoning', ('7', '1'): 'Posing 1', ('7', '2'): 'Posing', ('8', '1'): 'Purchases 1', ('8', '2'): 'Purchases', ('9', '1'): 'Sitting 1', ('9', '2'): 'Sitting', ('10', '1'): 'SittingDown', ('10', '2'): 'SittingDown 1', ('11', '1'): 'Smoking 1', ('11', '2'): 'Smoking', ('12', '1'): 'Photo', ('12', '2'): 'Photo 2', ('13', '1'): 'Waiting 1', ('13', '2'): 'Waiting 2', ('14', '1'): 'Walking 1', ('14', '2'): 'Walking', ('15', '1'): 'WalkDog 1', ('15', '2'): 'WalkDog', ('16', '1'): 'WalkTogether 1', ('16', '2'): 'WalkTogether'}, 'S6': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directions 1', ('2', '2'): 'Directions', ('3', '1'): 'Discussion 1', ('3', '2'): 'Discussion', ('4', '1'): 'Eating 1', ('4', '2'): 'Eating 2', ('5', '1'): 'Greeting 1', ('5', '2'): 'Greeting', ('6', '1'): 'Phoning 1', ('6', '2'): 'Phoning', ('7', '1'): 'Posing 2', ('7', '2'): 'Posing', ('8', '1'): 'Purchases 1', ('8', '2'): 'Purchases', ('9', '1'): 'Sitting 1', ('9', '2'): 'Sitting 2', ('10', '1'): 'SittingDown 1', ('10', '2'): 'SittingDown', ('11', '1'): 'Smoking 1', ('11', '2'): 'Smoking', ('12', '1'): 'Photo', ('12', '2'): 'Photo 1', ('13', '1'): 'Waiting 3', ('13', '2'): 'Waiting', ('14', '1'): 'Walking 1', ('14', '2'): 'Walking', ('15', '1'): 'WalkDog 1', ('15', '2'): 'WalkDog', ('16', '1'): 'WalkTogether 1', ('16', '2'): 'WalkTogether'}, 'S7': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directions 1', ('2', '2'): 'Directions', ('3', '1'): 'Discussion 1', ('3', '2'): 'Discussion', ('4', '1'): 'Eating 1', ('4', '2'): 'Eating', ('5', '1'): 'Greeting 1', ('5', '2'): 'Greeting', ('6', '1'): 'Phoning 2', ('6', '2'): 'Phoning', ('7', '1'): 'Posing 1', ('7', '2'): 'Posing', ('8', '1'): 'Purchases 1', ('8', '2'): 'Purchases', ('9', '1'): 'Sitting 1', ('9', '2'): 'Sitting', ('10', '1'): 'SittingDown', ('10', '2'): 'SittingDown 1', ('11', '1'): 'Smoking 1', ('11', '2'): 'Smoking', ('12', '1'): 'Photo', ('12', '2'): 'Photo 1', ('13', '1'): 'Waiting 1', ('13', '2'): 'Waiting 2', ('14', '1'): 'Walking 1', ('14', '2'): 'Walking 2', ('15', '1'): 'WalkDog 1', ('15', '2'): 'WalkDog', ('16', '1'): 'WalkTogether 1', ('16', '2'): 'WalkTogether'}, 'S8': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directions 1', ('2', '2'): 'Directions', ('3', '1'): 'Discussion 1', ('3', '2'): 'Discussion', ('4', '1'): 'Eating 1', ('4', '2'): 'Eating', ('5', '1'): 'Greeting 1', ('5', '2'): 'Greeting', ('6', '1'): 'Phoning 1', ('6', '2'): 'Phoning', ('7', '1'): 'Posing 1', ('7', '2'): 'Posing', ('8', '1'): 'Purchases 1', ('8', '2'): 'Purchases', ('9', '1'): 'Sitting 1', ('9', '2'): 'Sitting', ('10', '1'): 'SittingDown', ('10', '2'): 'SittingDown 1', ('11', '1'): 'Smoking 1', ('11', '2'): 'Smoking', ('12', '1'): 'Photo 1', ('12', '2'): 'Photo', ('13', '1'): 'Waiting 1', ('13', '2'): 'Waiting', ('14', '1'): 'Walking 1', ('14', '2'): 'Walking', ('15', '1'): 'WalkDog 1', ('15', '2'): 'WalkDog', ('16', '1'): 'WalkTogether 1', ('16', '2'): 'WalkTogether 2'}, 'S9': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directions 1', ('2', '2'): 'Directions', ('3', '1'): 'Discussion 1', ('3', '2'): 'Discussion 2', ('4', '1'): 'Eating 1', ('4', '2'): 'Eating', ('5', '1'): 'Greeting 1', ('5', '2'): 'Greeting', ('6', '1'): 'Phoning 1', ('6', '2'): 'Phoning', ('7', '1'): 'Posing 1', ('7', '2'): 'Posing', ('8', '1'): 'Purchases 1', ('8', '2'): 'Purchases', ('9', '1'): 'Sitting 1', ('9', '2'): 'Sitting', ('10', '1'): 'SittingDown', ('10', '2'): 'SittingDown 1', ('11', '1'): 'Smoking 1', ('11', '2'): 'Smoking', ('12', '1'): 'Photo 1', ('12', '2'): 'Photo', ('13', '1'): 'Waiting 1', ('13', '2'): 'Waiting', ('14', '1'): 'Walking 1', ('14', '2'): 'Walking', ('15', '1'): 'WalkDog 1', ('15', '2'): 'WalkDog', ('16', '1'): 'WalkTogether 1', ('16', '2'): 'WalkTogether'}, 'S10': {('1', '1'): '_ALL 2', ('1', '2'): '_ALL 1', ('2', '1'): 'Directions 1', ('2', '2'): 'Directions', ('3', '1'): 'Discussion 1', ('3', '2'): 'Discussion 2', ('4', '1'): 'Eating 1', ('4', '2'): 'Eating', ('5', '1'): 'Greeting 1', ('5', '2'): 'Greeting', ('6', '1'): 'Phoning 1', ('6', '2'): 'Phoning', ('7', '1'): 'Posing 1', ('7', '2'): 'Posing', ('8', '1'): 'Purchases 1', ('8', '2'): 'Purchases', ('9', '1'): 'Sitting 1', ('9', '2'): 'Sitting', ('10', '1'): 'SittingDown', ('10', '2'): 'SittingDown 1', ('11', '1'): 'Smoking 2', ('11', '2'): 'Smoking', ('12', '1'): 'Photo 1', ('12', '2'): 'Photo', ('13', '1'): 'Waiting 1', ('13', '2'): 'Waiting', ('14', '1'): 'Walking 1', ('14', '2'): 'Walking', ('15', '1'): 'WalkDog 1', ('15', '2'): 'WalkDog', ('16', '1'): 'WalkTogether 1', ('16', '2'): 'WalkTogether'}, 'S11': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directions 1', ('2', '2'): 'Directions', ('3', '1'): 'Discussion 1', ('3', '2'): 'Discussion 2', ('4', '1'): 'Eating 1', ('4', '2'): 'Eating', ('5', '1'): 'Greeting 2', ('5', '2'): 'Greeting', ('6', '1'): 'Phoning 3', ('6', '2'): 'Phoning 2', ('7', '1'): 'Posing 1', ('7', '2'): 'Posing', ('8', '1'): 'Purchases 1', ('8', '2'): 'Purchases', ('9', '1'): 'Sitting 1', ('9', '2'): 'Sitting', ('10', '1'): 'SittingDown', ('10', '2'): 'SittingDown 1', ('11', '1'): 'Smoking 2', ('11', '2'): 'Smoking', ('12', '1'): 'Photo 1', ('12', '2'): 'Photo', ('13', '1'): 'Waiting 1', ('13', '2'): 'Waiting', ('14', '1'): 'Walking 1', ('14', '2'): 'Walking', ('15', '1'): 'WalkDog 1', ('15', '2'): 'WalkDog', ('16', '1'): 'WalkTogether 1', ('16', '2'): 'WalkTogether'}}
-
+actions = ['Sitting-1', 'SittingDown-1', 'Greeting-2', 'Walking-2', 'Purchases-1', 'Phoning-2', 'Directions-1', 'Waiting-2', 'Discussion-1', 'Smoking-1', 'TakingPhoto-1', 'Eating-1', 'WalkingDog-2', 'Posing-1', 'MySegmentsMat', 'WalkingTogether-2', 'Sitting-2', 'Phoning-1', 'Waiting-1', 'SittingDown-2', 'WalkingDog-1', 'Purchases-2', 'WalkingTogether-1', 'Directions-2', 'Greeting-1', 'Discussion-2', 'Walking-1', 'Smoking-2', 'TakingPhoto-2', 'Eating-2', 'Posing-2']
 
 # For local sagemaker
 #images_base_path = "/root/IISc/SOTA/learnable_triangulation/learnable-triangulation-pytorch/data/human36m/processed"
@@ -28,6 +29,16 @@ mapping = {'S1': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directi
 # For downloading in Dataloader
 images_base_path = 'human36m/processed'
 
+
+def subprocess_call(action, subjects):
+    for subject in subjects:
+        if not os.path.exists(f"/dataset/human36m/processed/{subject}/{action}/"):
+            os.makedirs(f"/dataset/human36m/processed/{subject}/{action}/")
+        s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/human36m/processed/{subject}/{action}"
+        local_path = f"/dataset/human36m/processed/{subject}/{action}"
+        subprocess.check_call(["aws", "s3", "cp", s3_path, local_path, "--recursive"])
+
+
 def download_data(train_subjects, test_subjects, all_data):
     if not os.path.exists("/dataset/"):
         os.makedirs("/dataset/")
@@ -35,13 +46,21 @@ def download_data(train_subjects, test_subjects, all_data):
         os.makedirs("/dataset/human36m/")
     if not os.path.exists("/dataset/human36m/processed/"):
         os.makedirs("/dataset/human36m/processed/")
+    for subject in train_subjects + test_subjects:
+            if not os.path.exists(f"/dataset/human36m/processed/{subject}/"):
+                os.makedirs(f"/dataset/human36m/processed/{subject}/")
 
-    return
 
     if all_data:
-        s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/human36m/processed/"
-        local_path = f"/dataset/human36m/processed/"
-        subprocess.check_call(["aws", "s3", "cp", s3_path, local_path, "--recursive"])
+
+        processes = []
+        for action in actions:
+            p = multiprocessing.Process(target=subprocess_call, args=(action, train_subjects + test_subjects))
+            processes.append(p)
+            p.start()
+
+        for process in processes:
+            process.join()
 
     else:
         subjects = train_subjects + test_subjects
@@ -52,7 +71,7 @@ def download_data(train_subjects, test_subjects, all_data):
             # Expt run actions
             actions = ['Directions-1']
             for action in actions:
-                if not os.path.exists(f"/dataset/human36m/processed/{subject}/action/"):
+                if not os.path.exists(f"/dataset/human36m/processed/{subject}/{action}/"):
                     os.makedirs(f"/dataset/human36m/processed/{subject}/{action}/")
                 
                 s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/human36m/processed/{subject}/{action}"
