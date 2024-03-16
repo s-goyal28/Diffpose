@@ -179,8 +179,7 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
     
     for subject in subjects:
         subject_mapping = {v: k for k, v in mapping[subject].items()}
-        for action in list(keypoints[subject].keys())[:1]:
-            print(action)
+        for action in keypoints[subject].keys():
             if action_filter is not None:
                 found = False
                 for a in action_filter:
@@ -195,7 +194,6 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
             for i in range(len(poses_2d)):  # Iterate across cameras
                 out_poses_2d.append(poses_2d[i])
                 out_actions.append([action.split(' ')[0]] * poses_2d[i].shape[0])
-                break
 
             if parse_3d_poses and 'positions_3d' in dataset[subject][action]:
                 poses_3d = dataset[subject][action]['positions_3d']
@@ -204,7 +202,6 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
                 for i in range(len(poses_3d)):  # Iterate across cameras
                     out_poses_3d.append(poses_3d[i])
                     out_camera_para.append([camera_para[i]]* poses_3d[i].shape[0])
-                    break
 
 
             # Get image paths
@@ -232,7 +229,6 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
 
                 img_file_names = [f"{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}/" + "img_%06d.jpg" % (idx+1) for idx in indexes]
                 out_image_paths.extend(img_file_names)
-                break
             
 
     if len(out_poses_3d) == 0:
