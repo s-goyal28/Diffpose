@@ -26,7 +26,7 @@ mapping = {'S1': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directi
 #images_base_path = '/dataset/human36m/processed'
 
 # For downloading in Dataloader
-images_base_path = 'human36m/processed/'
+images_base_path = 'human36m/processed'
 
 def download_data(train_subjects, test_subjects, all_data):
     if not os.path.exists("/dataset/"):
