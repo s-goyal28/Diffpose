@@ -23,7 +23,7 @@ mapping = {'S1': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directi
 # For instance run
 images_base_path = '/dataset/human36m/processed'
 
-def download_data(subjects):
+def download_data(train_subjects, test_subjects, all_data):
     if not os.path.exists("/dataset/"):
         os.makedirs("/dataset/")
     if not os.path.exists("/dataset/human36m/"):
@@ -31,19 +31,26 @@ def download_data(subjects):
     if not os.path.exists("/dataset/human36m/processed/"):
         os.makedirs("/dataset/human36m/processed/")
 
-    for subject in subjects:
-        if not os.path.exists(f"/dataset/human36m/processed/{subject}/"):
-            os.makedirs(f"/dataset/human36m/processed/{subject}/")
-        
-        # Expt run actions
-        actions = ['Directions-1']
-        for action in actions:
-            if not os.path.exists(f"/dataset/human36m/processed/{subject}/action/"):
-                os.makedirs(f"/dataset/human36m/processed/{subject}/{action}/")
+    if all_data:
+        s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/human36m/processed/"
+        local_path = f"/dataset/human36m/processed/"
+        subprocess.check_call(["aws", "s3", "cp", s3_path, local_path, "--recursive"])
+
+    else:
+        subjects = train_subjects + test_subjects
+        for subject in subjects:
+            if not os.path.exists(f"/dataset/human36m/processed/{subject}/"):
+                os.makedirs(f"/dataset/human36m/processed/{subject}/")
             
-            s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/human36m/processed/{subject}/{action}"
-            local_path = f"/dataset/human36m/processed/{subject}/{action}/"
-            subprocess.check_call(["aws", "s3", "cp", s3_path, local_path, "--recursive"])
+            # Expt run actions
+            actions = ['Directions-1']
+            for action in actions:
+                if not os.path.exists(f"/dataset/human36m/processed/{subject}/action/"):
+                    os.makedirs(f"/dataset/human36m/processed/{subject}/{action}/")
+                
+                s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/human36m/processed/{subject}/{action}"
+                local_path = f"/dataset/human36m/processed/{subject}/{action}/"
+                subprocess.check_call(["aws", "s3", "cp", s3_path, local_path, "--recursive"])
 
 
 def read_3d_data(dataset):

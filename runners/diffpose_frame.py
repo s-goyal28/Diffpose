@@ -52,6 +52,11 @@ class Diffpose(object):
         )
         betas = self.betas = torch.from_numpy(betas).float().to(self.device)
         self.num_timesteps = betas.shape[0]
+        
+        # Setup ViT model
+        self.image_processor = AutoImageProcessor.from_pretrained("vit-base-patch16-224-in21k")
+        self.vit_model = ViTModel.from_pretrained("vit-base-patch16-224-in21k")#, output_hidden_states=True)
+        self.vit_model = self.vit_model.to(self.device)
 
     # prepare 2D and 3D skeleton for model training and testing 
     def prepare_data(self):
@@ -75,7 +80,7 @@ class Diffpose(object):
                 print('==> Selected actions: {}'.format(self.action_filter))
 
             # Download Image data
-            download_data(TRAIN_SUBJECTS)
+            download_data(TRAIN_SUBJECTS, TEST_SUBJECTS, False)
 
         else:
             raise KeyError('Invalid dataset')
@@ -128,17 +133,13 @@ class Diffpose(object):
         best_p1, best_epoch = 1000, 0
         # skip rate when sample skeletons from video
         stride = self.args.downsample
-
-        image_processor = AutoImageProcessor.from_pretrained("vit-base-patch16-224-in21k")
-        vit_model = ViTModel.from_pretrained("vit-base-patch16-224-in21k")#, output_hidden_states=True)
-        vit_model = vit_model.to(self.device)
         
         # create dataloader
         if config.data.dataset == "human36m":
             poses_train, poses_train_2d, actions_train, camerapara_train, out_image_paths_train\
                 = fetch_me(self.subjects_train, self.dataset, self.keypoints_train, self.action_filter, stride)
             data_loader = train_loader = data.DataLoader(
-                PoseGenerator_gmm(poses_train, poses_train_2d, actions_train, camerapara_train, out_image_paths_train, image_processor),
+                PoseGenerator_gmm(poses_train, poses_train_2d, actions_train, camerapara_train, out_image_paths_train, self.image_processor),
                 batch_size=config.training.batch_size, shuffle=True,\
                     num_workers=config.training.num_workers, pin_memory=True)
         else:
@@ -174,7 +175,7 @@ class Diffpose(object):
                 input_feats = image_feats['pixel_values'].reshape((-1, 3, 224, 224))
                 input_feats = input_feats.to(self.device)
                 with torch.no_grad():
-                    outputs = vit_model(pixel_values = input_feats)
+                    outputs = self.vit_model(pixel_values = input_feats)
 
                 image_features = outputs.last_hidden_state
                 print("image_features shape", image_features.shape)
@@ -264,10 +265,10 @@ class Diffpose(object):
             config.testing.test_times, config.testing.test_timesteps, config.testing.test_num_diffusion_timesteps, args.downsample
                 
         if config.data.dataset == "human36m":
-            poses_valid, poses_valid_2d, actions_valid, camerapara_valid = \
+            poses_valid, poses_valid_2d, actions_valid, camerapara_valid, out_image_paths_valid= \
                 fetch_me(self.subjects_test, self.dataset, self.keypoints_test, self.action_filter, stride)
             data_loader = valid_loader = data.DataLoader(
-                PoseGenerator_gmm(poses_valid, poses_valid_2d, actions_valid, camerapara_valid),
+                PoseGenerator_gmm(poses_valid, poses_valid_2d, actions_valid, camerapara_valid, out_image_paths_valid, self.image_processor),
                 batch_size=config.training.batch_size, shuffle=False, 
                 num_workers=config.training.num_workers, pin_memory=True)
         else:
@@ -301,8 +302,17 @@ class Diffpose(object):
             'SittingDown','Smoking','Waiting','WalkDog','Walking','WalkTogether']
         action_error_sum = define_error_list(self.test_action_list)        
 
-        for i, (_, input_noise_scale, input_2d, targets_2d, input_action, camera_para) in enumerate(data_loader):
+        for i, (_, input_noise_scale, input_2d, targets_2d, input_action, camera_para, image_feats) in enumerate(data_loader):
             data_time += time.time() - data_start
+
+            # Get image embeeding from ViT
+            input_feats = image_feats['pixel_values'].reshape((-1, 3, 224, 224))
+            input_feats = input_feats.to(self.device)
+            with torch.no_grad():
+                outputs = self.vit_model(pixel_values = input_feats)
+
+            image_features = outputs.last_hidden_state
+            print("valid image_features shape", image_features.shape)
 
             input_noise_scale, input_2d, targets_2d = \
                 input_noise_scale.to(self.device), input_2d.to(self.device), targets_2d.to(self.device)
@@ -334,7 +344,7 @@ class Diffpose(object):
             a = (1-b).cumprod(dim=0).index_select(0, t).view(-1, 1, 1)
             # x = x * a.sqrt() + e * (1.0 - a).sqrt()
             
-            output_uvxy = generalized_steps(x, src_mask, seq, self.model_diff, self.betas, eta=self.args.eta)
+            output_uvxy = generalized_steps(x, src_mask, seq, self.model_diff, self.betas, image_features, eta=self.args.eta)
             output_uvxy = output_uvxy[0][-1]            
             output_uvxy = torch.mean(output_uvxy.reshape(test_times,-1,17,4),0)
             output_xy = output_uvxy[:,:,2:]
