@@ -344,18 +344,19 @@ class Diffpose(object):
             a = (1-b).cumprod(dim=0).index_select(0, t).view(-1, 1, 1)
             # x = x * a.sqrt() + e * (1.0 - a).sqrt()
             
-            output_uvxy = generalized_steps(x, src_mask, seq, self.model_diff, self.betas, image_features, eta=self.args.eta)
+            output_uvxy = generalized_steps(x, src_mask, seq, self.model_diff, self.betas, image_features, self.device, eta=self.args.eta)
             output_uvxy = output_uvxy[0][-1]            
             output_uvxy = torch.mean(output_uvxy.reshape(test_times,-1,17,4),0)
             output_xy = output_uvxy[:,:,2:]
             output_xy[:, :, :] -= output_xy[:, :1, :]
-            targets_2d[:, :, :] -= targets_2d[:, :1, :]
-            epoch_loss_3d_pos.update(mpjpe(output_xy, targets_2d).item() * 1000.0, targets_2d.size(0))
-            epoch_loss_3d_pos_procrustes.update(p_mpjpe(output_xy.cpu().numpy(), targets_2d.cpu().numpy()).item() * 1000.0, targets_2d.size(0))\
+            
+            new_targets_2d = targets_2d - targets_2d[:, :1, :]
+            epoch_loss_3d_pos.update(mpjpe(output_xy, new_targets_2d).item() * 1000.0, new_targets_2d.size(0))
+            epoch_loss_3d_pos_procrustes.update(p_mpjpe(output_xy.cpu().numpy(), new_targets_2d.cpu().numpy()).item() * 1000.0, new_targets_2d.size(0))\
             
             data_start = time.time()
             
-            action_error_sum = test_calculation(output_xy, targets_2d, input_action, action_error_sum, None, None)
+            action_error_sum = test_calculation(output_xy, new_targets_2d, input_action, action_error_sum, None, None)
             
             if i%100 == 0 and i != 0:
                 logging.info('({batch}/{size}) Data: {data:.6f}s | MPJPE: {e1: .4f} | P-MPJPE: {e2: .4f}'\
