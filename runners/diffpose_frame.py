@@ -107,8 +107,8 @@ class Diffpose(object):
         # load pretrained model
         if model_path:
             logging.info('initialize model by:' + model_path)
-            states = torch.load(model_path)
-            self.model_pose.load_state_dict(states[0], map_location=self.device)
+            states = torch.load(model_path, map_location=self.device)
+            self.model_pose.load_state_dict(states[0])
         else:
             logging.info('initialize model randomly')
 
