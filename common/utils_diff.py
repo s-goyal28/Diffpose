@@ -43,15 +43,15 @@ def compute_alpha(beta, t):
     return a
 
 
-def generalized_steps(x, src_mask, seq, model, b, **kwargs):
+def generalized_steps(x, src_mask, seq, model, b, device, **kwargs):
     with torch.no_grad():
         n = x.size(0)
         seq_next = [-1] + list(seq[:-1])
         x0_preds = []
         xs = [x]
         for i, j in zip(reversed(seq), reversed(seq_next)):
-            t = (torch.ones(n) * i).cuda()
-            next_t = (torch.ones(n) * j).cuda()
+            t = (torch.ones(n) * i).to(device)
+            next_t = (torch.ones(n) * j).to(device)
             at = compute_alpha(b, t.long())
             at_next = compute_alpha(b, next_t.long())
             xt = xs[-1]
