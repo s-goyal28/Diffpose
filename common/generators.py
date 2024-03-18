@@ -37,7 +37,7 @@ class PoseGenerator_gmm(Dataset):
         kernel_variance = out_pose_2d_kernel[:,3:]
 
         out_pose_uvxy = np.concatenate((kernel_mean,out_pose_2d),axis=1)
-        out_pose_noise_scale = np.concatenate((kernel_variance,np.ones(out_pose_2d.shape)),axis=1)
+        out_pose_noise_scale = np.ones(out_pose_2d.shape)
 
         out_pose_uvxy = torch.from_numpy(out_pose_uvxy).float()
         out_pose_noise_scale = torch.from_numpy(out_pose_noise_scale).float()

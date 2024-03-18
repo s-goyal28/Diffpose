@@ -155,17 +155,17 @@ class Diffpose(object):
             
             epoch_loss_diff = AverageMeter()
 
-            for i, (targets_uvxy, targets_noise_scale, _, targets_2d, _, _) in enumerate(data_loader):
+            for i, (_, targets_noise_scale, _, targets_2d, _, _) in enumerate(data_loader):
                 data_time += time.time() - data_start
                 step += 1
 
                 # to cuda
-                targets_uvxy, targets_noise_scale, targets_2d = \
-                    targets_uvxy.to(self.device), targets_noise_scale.to(self.device), targets_2d.to(self.device)
+                targets_noise_scale, targets_2d = \
+                    targets_noise_scale.to(self.device), targets_2d.to(self.device)
                 
                 # generate nosiy sample based on seleted time t and beta
                 n = targets_2d.size(0)
-                x = targets_uvxy
+                x = targets_2d
                 e = torch.randn_like(x)
                 b = self.betas            
                 t = torch.randint(low=0, high=self.num_timesteps,
@@ -178,7 +178,7 @@ class Diffpose(object):
                 
                 # predict noise
                 output_noise = self.model_diff(x, src_mask, t.float(), 0)
-                loss_diff = (e - output_noise).square().sum(dim=(1, 2)).mean(dim=0) # Check this sum on dims
+                loss_diff = (e - output_noise).square().mean(dim=0)
                 
                 optimizer.zero_grad()
                 loss_diff.backward()
@@ -231,7 +231,7 @@ class Diffpose(object):
                 #     ["aws", "s3", "ls", self.args.log_path]
                 # )
                 logging.info('Saving Checkpoint')
-                s3_model_dir = "s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/diffPose-2D/"
+                s3_model_dir = "s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/diffPose-2D_wo_gmm/"
                 subprocess.check_call(
                     ["aws", "s3", "cp", self.args.log_path, s3_model_dir, "--recursive"]
                 )
@@ -295,10 +295,10 @@ class Diffpose(object):
             input_uvxy = torch.cat([input_2d,inputs_xy],dim=2)
                         
             # generate distribution
-            input_uvxy = input_uvxy.repeat(test_times,1,1)
+            inputs_xy = inputs_xy.repeat(test_times,1,1)
             input_noise_scale = input_noise_scale.repeat(test_times,1,1)
             # select diffusion step
-            t = torch.ones(input_uvxy.size(0)).type(torch.LongTensor).to(self.device)*test_num_diffusion_timesteps
+            t = torch.ones(inputs_xy.size(0)).type(torch.LongTensor).to(self.device)*test_num_diffusion_timesteps
             
             
             #print('Logging shapes')
@@ -307,17 +307,17 @@ class Diffpose(object):
             #print("input_noise_scale", input_noise_scale.shape)
             
             # prepare the diffusion parameters
-            x = input_uvxy.clone()
-            e = torch.randn_like(input_uvxy)
+            x = inputs_xy.clone()
+            e = torch.randn_like(inputs_xy)
             b = self.betas   
             e = e*input_noise_scale        
             a = (1-b).cumprod(dim=0).index_select(0, t).view(-1, 1, 1)
             # x = x * a.sqrt() + e * (1.0 - a).sqrt()
             
-            output_uvxy = generalized_steps(x, src_mask, seq, self.model_diff, self.betas, eta=self.args.eta)
-            output_uvxy = output_uvxy[0][-1]            
-            output_uvxy = torch.mean(output_uvxy.reshape(test_times,-1,17,4),0)
-            output_xy = output_uvxy[:,:,2:]
+            output_xy = generalized_steps(x, src_mask, seq, self.model_diff, self.betas, eta=self.args.eta)
+            output_xy = output_xy[0][-1]            
+            output_xy = torch.mean(output_xy.reshape(test_times,-1,17,2),0)
+            #output_xy = output_xy[:,:,2:]
             output_xy[:, :, :] -= output_xy[:, :1, :]
             targets_2d[:, :, :] -= targets_2d[:, :1, :]
             epoch_loss_3d_pos.update(mpjpe(output_xy, targets_2d).item() * 1000.0, targets_2d.size(0))
