@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division
 import os
 import subprocess
+import multiprocessing 
 
 import numpy as np
 from boto3.session import Session as BotoSession
@@ -23,10 +24,19 @@ mapping = {'S1': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directi
 #images_base_path = "/root/IISc/SOTA/learnable_triangulation/learnable-triangulation-pytorch/data/human36m/processed"
 
 # For instance run
-#images_base_path = '/dataset/human36m/processed'
+##images_base_path = '/dataset/human36m/processed'
 
 # For downloading in Dataloader
 images_base_path = 'human36m/processed'
+
+
+def subprocess_call(action, subjects):
+    for subject in subjects:
+        if not os.path.exists(f"/dataset/human36m/processed/{subject}/{action}/"):
+            os.makedirs(f"/dataset/human36m/processed/{subject}/{action}/")
+        s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/human36m/processed/{subject}/{action}"
+        local_path = f"/dataset/human36m/processed/{subject}/{action}"
+        subprocess.check_call(["aws", "s3", "cp", s3_path, local_path, "--recursive"])
 
 def download_data(train_subjects, test_subjects, all_data):
     if not os.path.exists("/dataset/"):
@@ -35,13 +45,23 @@ def download_data(train_subjects, test_subjects, all_data):
         os.makedirs("/dataset/human36m/")
     if not os.path.exists("/dataset/human36m/processed/"):
         os.makedirs("/dataset/human36m/processed/")
+    for subject in train_subjects + test_subjects:
+            if not os.path.exists(f"/dataset/human36m/processed/{subject}/"):
+                os.makedirs(f"/dataset/human36m/processed/{subject}/")
 
-    return
 
     if all_data:
-        s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/human36m/processed/"
-        local_path = f"/dataset/human36m/processed/"
-        subprocess.check_call(["aws", "s3", "cp", s3_path, local_path, "--recursive"])
+
+        actions = ['Sitting-1', 'SittingDown-1', 'Greeting-2', 'Walking-2', 'Purchases-1', 'Phoning-2', 'Directions-1', 'Waiting-2', 'Discussion-1', 'Smoking-1', 'TakingPhoto-1', 'Eating-1', 'WalkingDog-2', 'Posing-1', 'MySegmentsMat', 'WalkingTogether-2', 'Sitting-2', 'Phoning-1', 'Waiting-1', 'SittingDown-2', 'WalkingDog-1', 'Purchases-2', 'WalkingTogether-1', 'Directions-2', 'Greeting-1', 'Discussion-2', 'Walking-1', 'Smoking-2', 'TakingPhoto-2', 'Eating-2', 'Posing-2']
+
+        processes = []
+        for action in actions:
+            p = multiprocessing.Process(target=subprocess_call, args=(action, train_subjects + test_subjects))
+            processes.append(p)
+            p.start()
+
+        for process in processes:
+            process.join()
 
     else:
         subjects = train_subjects + test_subjects
@@ -52,7 +72,7 @@ def download_data(train_subjects, test_subjects, all_data):
             # Expt run actions
             actions = ['Directions-1']
             for action in actions:
-                if not os.path.exists(f"/dataset/human36m/processed/{subject}/action/"):
+                if not os.path.exists(f"/dataset/human36m/processed/{subject}/{action}/"):
                     os.makedirs(f"/dataset/human36m/processed/{subject}/{action}/")
                 
                 s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/human36m/processed/{subject}/{action}"
@@ -89,7 +109,7 @@ class S3Boto(object):
     """
 
     def __init__(self, boto_session, bucket):
-        self.boto = boto_session.resource("s3")
+        self.boto = boto_session.client("s3")
         self.bucket = bucket
 
     def list_files(
@@ -131,26 +151,35 @@ class S3Boto(object):
 
         if limit is not None:
             kwargs.update(MaxKeys=limit)
+            
+        kwargs.update(PaginationConfig={"PageSize": 1000})
+        paginator = self.boto.get_paginator("list_objects_v2")
+        response = paginator.paginate(**kwargs) #Bucket=self.bucket, PaginationConfig={"PageSize": 400})
+        for _objects in response:
+            
         # print(f"Boto3 parameters for listing files {kwargs}")
-        _objects = self.boto.Bucket(self.bucket).meta.client.list_objects_v2(
-            **kwargs
-        )
+        
+        # _objects = self.boto.Bucket(self.bucket).meta.client.list_objects_v2(
+        #     **kwargs
+        # )
 
-        if list_dirs and ("CommonPrefixes" in _objects):
-            for _obj in _objects.get("CommonPrefixes"):
-                _path = _obj.get("Prefix")
-                results.append(_path)
+            if list_dirs and ("CommonPrefixes" in _objects):
+                for _obj in _objects.get("CommonPrefixes"):
+                    _path = _obj.get("Prefix")
+                    results.append(_path)
 
-        if list_objs and ("Contents" in _objects):
-            for _obj in _objects.get("Contents"):
-                _path = _obj.get("Key")
-                results.append(_path)
+            if list_objs and ("Contents" in _objects):
+                for _obj in _objects.get("Contents"):
+                    _path = _obj.get("Key")
+                    results.append(_path)
+        
 
         if full_path:
             results = [
                 s3_prefix + self.bucket + "/" + _path for _path in results
             ]
-
+            
+        print(f"List files Done for path : {data_path}")
         return results
 
     def path_exists(self, path):
@@ -320,8 +349,7 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
     
     for subject in subjects:
         subject_mapping = {v: k for k, v in mapping[subject].items()}
-        for action in list(keypoints[subject].keys())[:1]:
-            print(action)
+        for action in keypoints[subject].keys():
             if action_filter is not None:
                 found = False
                 for a in action_filter:
@@ -336,7 +364,6 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
             for i in range(len(poses_2d)):  # Iterate across cameras
                 out_poses_2d.append(poses_2d[i])
                 out_actions.append([action.split(' ')[0]] * poses_2d[i].shape[0])
-                break
 
             if parse_3d_poses and 'positions_3d' in dataset[subject][action]:
                 poses_3d = dataset[subject][action]['positions_3d']
@@ -345,7 +372,6 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
                 for i in range(len(poses_3d)):  # Iterate across cameras
                     out_poses_3d.append(poses_3d[i])
                     out_camera_para.append([camera_para[i]]* poses_3d[i].shape[0])
-                    break
 
 
             # Get image paths
@@ -372,12 +398,14 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
                 #file_list = os.listdir(f"{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
                 file_list = boto_io.list_files(f"ml_forecasting/s.goyal/IISc/data/{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
                 file_list = [file for file in file_list if file.split('/')[-1][0] != '.']
+                if len(file_list) != poses_2d[i].shape[0]:
+                    print(f"ml_forecasting/s.goyal/IISc/data/{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
+                    print(len(file_list), poses_2d[i].shape[0])
                 indexes = np.array([int(file.split('/')[-1].split('.')[0].split('_')[1]) - 1 for file in file_list])
                 indexes.sort()
 
                 img_file_names = [f"{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}/" + "img_%06d.jpg" % (idx+1) for idx in indexes]
                 out_image_paths.extend(img_file_names)
-                break
             
 
     if len(out_poses_3d) == 0:

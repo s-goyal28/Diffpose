@@ -80,7 +80,7 @@ class Diffpose(object):
                 print('==> Selected actions: {}'.format(self.action_filter))
 
             # Download Image data
-            download_data(TRAIN_SUBJECTS, TEST_SUBJECTS, False)
+            download_data(TRAIN_SUBJECTS, TEST_SUBJECTS, True)
 
         else:
             raise KeyError('Invalid dataset')
@@ -178,7 +178,7 @@ class Diffpose(object):
                     outputs = self.vit_model(pixel_values = input_feats)
 
                 image_features = outputs.last_hidden_state
-                print("image_features shape", image_features.shape)
+                #print("image_features shape", image_features.shape)
 
                 # to cuda
                 targets_uvxy, targets_noise_scale, targets_2d = \
@@ -252,7 +252,7 @@ class Diffpose(object):
                 #     ["aws", "s3", "ls", self.args.log_path]
                 # )
                 logging.info('Saving Checkpoint')
-                s3_model_dir = "s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/diffPose-2D-cond-expt/"
+                s3_model_dir = "s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/diffPose-2D-cond/"
                 subprocess.check_call(
                     ["aws", "s3", "cp", self.args.log_path, s3_model_dir, "--recursive"]
                 )
@@ -312,7 +312,7 @@ class Diffpose(object):
                 outputs = self.vit_model(pixel_values = input_feats)
 
             image_features = outputs.last_hidden_state
-            print("valid image_features shape", image_features.shape)
+            #print("valid image_features shape", image_features.shape)
 
             input_noise_scale, input_2d, targets_2d = \
                 input_noise_scale.to(self.device), input_2d.to(self.device), targets_2d.to(self.device)
