@@ -178,7 +178,7 @@ class Diffpose(object):
                 
                 # predict noise
                 output_noise = self.model_diff(x, src_mask, t.float(), 0)
-                loss_diff = (e - output_noise).square().mean(dim=0)
+                loss_diff = (e - output_noise).square().sum(dim=(1,2)).mean(dim=0)
                 
                 optimizer.zero_grad()
                 loss_diff.backward()
