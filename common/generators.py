@@ -29,7 +29,6 @@ class PoseGenerator_gmm(Dataset):
         assert self._poses_3d.shape[0] == self._poses_2d_gmm.shape[0] and self._poses_3d.shape[0] == len(self._actions) == len(image_paths)
         print('Generating {} poses...'.format(len(self._actions)))
 
-
         self.bb_pose = np.load("./data/bboxes-Human36M-GT.npy", allow_pickle=True).item()
 
     def __getitem__(self, index):
@@ -71,10 +70,10 @@ class PoseGenerator_gmm(Dataset):
         camera = path_split[7]
         bb_index = int(path_split[8].split('.')[0].split('_')[1]) -1 
 
-        print(subject, action, camera, bb_index)
+        print("In get_item", subject, action, camera, bb_index)
 
         (top, left, bottom, right) = self.bb_pose[subject][action][camera][bb_index]
-        crop_img = image[top:bottom, left:right,]
+        crop_img = image.crop((left, top, right, bottom))
         
         image_feats = self.image_processor(crop_img, return_tensors="pt")
         
