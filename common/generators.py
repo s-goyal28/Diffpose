@@ -29,6 +29,9 @@ class PoseGenerator_gmm(Dataset):
         assert self._poses_3d.shape[0] == self._poses_2d_gmm.shape[0] and self._poses_3d.shape[0] == len(self._actions) == len(image_paths)
         print('Generating {} poses...'.format(len(self._actions)))
 
+
+        self.bb_pose = np.load("./data/bboxes-Human36M-GT.npy", allow_pickle=True).item()
+
     def __getitem__(self, index):
         out_pose_2d = self._poses_3d[index][:,:2]
         out_pose_2d_gmm = self._poses_2d_gmm[index]
@@ -60,7 +63,20 @@ class PoseGenerator_gmm(Dataset):
         if not os.path.exists(local_path):
             subprocess.check_call(["aws", "s3", "cp", s3_path, local_path])
         image = Image.open(local_path)
-        image_feats = self.image_processor(image, return_tensors="pt")
+        
+        # Fetch bounding box
+        path_split = local_path.split('/')
+        subject = path_split[4]
+        action = path_split[5]
+        camera = path_split[7]
+        bb_index = int(path_split[8].split('.')[0].split('_')[1]) -1 
+
+        print(subject, action, camera, bb_index)
+
+        (top, left, bottom, right) = self.bb_pose[subject][action][camera][bb_index]
+        crop_img = image[top:bottom, left:right,]
+        
+        image_feats = self.image_processor(crop_img, return_tensors="pt")
         
         return out_pose_uvxy, out_pose_noise_scale, out_pose_2d_mean, out_pose_2d, out_action, out_camerapara, image_feats
 
