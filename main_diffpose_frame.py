@@ -67,7 +67,7 @@ def parse_args_and_config():
                         help='weight decay rate')
     parser.add_argument('--lr', default=1e-3, type=float, metavar='N',
                         help='learning rate')
-    parser.add_argument('--decay', default=60, type=int, metavar='N',
+    parser.add_argument('--decay', default=3, type=int, metavar='N',
                         help='decay frequency(epoch)')
     #test hyperparameter
     parser.add_argument('--test_times', default=5, type=int, metavar='N',

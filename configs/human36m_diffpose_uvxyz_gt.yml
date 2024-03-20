@@ -39,7 +39,7 @@ testing:
     test_num_diffusion_timesteps: 12
 
 optim:
-    decay: 60
+    decay: 3
     optimizer: "Adam"
     lr: 0.00002
     lr_gamma: 0.9
