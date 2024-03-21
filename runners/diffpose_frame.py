@@ -87,7 +87,7 @@ class Diffpose(object):
         
         # load pretrained model
         if model_path:
-            states = torch.load(model_path)
+            states = torch.load(model_path, map_location=self.device)
             self.model_diff.load_state_dict(states[0])
             
     def create_pose_model(self, model_path = None):
@@ -107,7 +107,7 @@ class Diffpose(object):
         # load pretrained model
         if model_path:
             logging.info('initialize model by:' + model_path)
-            states = torch.load(model_path)
+            states = torch.load(model_path, map_location=self.device)
             self.model_pose.load_state_dict(states[0])
         else:
             logging.info('initialize model randomly')
@@ -231,7 +231,7 @@ class Diffpose(object):
                 #     ["aws", "s3", "ls", self.args.log_path]
                 # )
                 logging.info('Saving Checkpoint')
-                s3_model_dir = "s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/diffPose-2D/"
+                s3_model_dir = "s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/diffPose-2D_project/"
                 subprocess.check_call(
                     ["aws", "s3", "cp", self.args.log_path, s3_model_dir, "--recursive"]
                 )
