@@ -38,7 +38,7 @@ class Diffpose(object):
         self.model_var_type = config.model.var_type
         # GraFormer mask
         self.src_mask = torch.tensor([[[True, True, True, True, True, True, True, True, True, True,
-                                True, True, True, True, True, True, True]]]).cuda()
+                                True, True, True, True, True, True, True]]]).to(self.device)
         
         # Generate Diffusion sequence parameters
         betas = get_beta_schedule(
@@ -82,7 +82,7 @@ class Diffpose(object):
                             [8, 11], [11, 12], [12, 13],
                             [8, 14], [14, 15], [15, 16]], dtype=torch.long)
         adj = adj_mx_from_edges(num_pts=17, edges=edges, sparse=False)
-        self.model_diff = GCNdiff(adj.cuda(), config).cuda()
+        self.model_diff = GCNdiff(adj.to(self.device), config).to(self.device)
         self.model_diff = torch.nn.DataParallel(self.model_diff)
         
         # load pretrained model
@@ -101,7 +101,7 @@ class Diffpose(object):
                             [8, 11], [11, 12], [12, 13],
                             [8, 14], [14, 15], [15, 16]], dtype=torch.long)
         adj = adj_mx_from_edges(num_pts=17, edges=edges, sparse=False)
-        self.model_pose = GCNpose(adj.cuda(), config).cuda()
+        self.model_pose = GCNpose(adj.to(self.device), config).to(self.device)
         self.model_pose = torch.nn.DataParallel(self.model_pose)
         
         # load pretrained model
@@ -124,10 +124,10 @@ class Diffpose(object):
         
         # create dataloader
         if config.data.dataset == "human36m":
-            poses_train, poses_train_2d, actions_train, camerapara_train\
+            poses_train_2d_gt, poses_train_2d, actions_train, camerapara_train\
                 = fetch_me(self.subjects_train, self.dataset, self.keypoints_train, self.action_filter, stride)
             data_loader = train_loader = data.DataLoader(
-                PoseGenerator_gmm(poses_train, poses_train_2d, actions_train, camerapara_train),
+                PoseGenerator_gmm(poses_train_2d_gt, poses_train_2d, actions_train, camerapara_train),
                 batch_size=config.training.batch_size, shuffle=True,\
                     num_workers=config.training.num_workers, pin_memory=True)
         else:
@@ -314,7 +314,7 @@ class Diffpose(object):
             a = (1-b).cumprod(dim=0).index_select(0, t).view(-1, 1, 1)
             # x = x * a.sqrt() + e * (1.0 - a).sqrt()
             
-            output_uvxy = generalized_steps(x, src_mask, seq, self.model_diff, self.betas, eta=self.args.eta)
+            output_uvxy = generalized_steps(x, src_mask, seq, self.model_diff, self.betas, self.device, eta=self.args.eta)
             output_uvxy = output_uvxy[0][-1]            
             output_uvxy = torch.mean(output_uvxy.reshape(test_times,-1,17,4),0)
             output_xy = output_uvxy[:,:,2:]

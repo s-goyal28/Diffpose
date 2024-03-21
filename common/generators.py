@@ -7,22 +7,22 @@ from functools import reduce
 
 
 class PoseGenerator_gmm(Dataset):
-    def __init__(self, poses_3d, poses_2d_gmm, actions, camerapara):
-        assert poses_3d is not None
+    def __init__(self, poses_2d_gt, poses_2d_gmm, actions, camerapara):
+        assert poses_2d_gt is not None
 
-        self._poses_3d = np.concatenate(poses_3d)
+        self._poses_2d_gt = np.concatenate(poses_2d_gt)
         self._poses_2d_gmm = np.concatenate(poses_2d_gmm)
         self._actions = reduce(lambda x, y: x + y, actions)
         self._camerapara = np.concatenate(camerapara)
         self._kernel_n = self._poses_2d_gmm.shape[2]
 
-        self._poses_3d[:,:,:] = self._poses_3d[:,:,:]-self._poses_3d[:,:1,:]
+        self._poses_2d_gt[:,:,:] = self._poses_2d_gt[:,:,:]-self._poses_2d_gt[:,:1,:]
 
-        assert self._poses_3d.shape[0] == self._poses_2d_gmm.shape[0] and self._poses_3d.shape[0] == len(self._actions)
+        assert self._poses_2d_gt.shape[0] == self._poses_2d_gmm.shape[0] and self._poses_2d_gt.shape[0] == len(self._actions)
         print('Generating {} poses...'.format(len(self._actions)))
 
     def __getitem__(self, index):
-        out_pose_2d = self._poses_3d[index][:,:2]
+        out_pose_2d = self._poses_2d_gt[index]
         out_pose_2d_gmm = self._poses_2d_gmm[index]
         out_action = self._actions[index]
         out_camerapara = self._camerapara[index]
