@@ -236,14 +236,33 @@ def read_3d_data(dataset):
 
 
 def read_3d_data_me(dataset):
+    bb_pose = np.load("./data/bboxes-Human36M-GT.npy", allow_pickle=True).item()
     for subject in dataset.subjects():
+        subject_mapping = {v: k for k, v in mapping[subject].items()}
         for action in dataset[subject].keys():
+
+            # Action in bound_box_file
+            if subject == 'S1' and 'Photo' in action:
+                folder_action = action.split(' ')[0] + '-' + subject_mapping[action.replace('Photo', 'TakingPhoto')][1]
+            elif subject == 'S1' and 'WalkDog' in action:
+                folder_action = action.split(' ')[0] + '-' + subject_mapping[action.replace('WalkDog', 'WalkingDog')][1]
+            else:
+                folder_action = action.split(' ')[0] + '-' + subject_mapping[action][1]
+            if 'WalkDog' in folder_action:
+                folder_action = folder_action.replace('WalkDog', 'WalkingDog')
+            elif 'Photo' in folder_action:
+                folder_action = folder_action.replace('Photo', 'TakingPhoto')
+            elif 'WalkTogether' in folder_action:
+                folder_action = folder_action.replace('WalkTogether', 'WalkingTogether')
+
+
             anim = dataset[subject][action]
 
             positions_3d = []
             positions_2d = []
             camerad_para = []
             for cam in anim['cameras']:
+                print(cam['id'])
                 pos_3d = world_to_camera(anim['positions'], R=cam['orientation'], t=cam['translation'])
                 # pos_3d[:, :] -= pos_3d[:, :1]  # Remove global offset
                 positions_3d.append(pos_3d)
@@ -251,7 +270,15 @@ def read_3d_data_me(dataset):
 
                 pos_2d = wrap(project_to_2d, True, pos_3d, cam['intrinsic'])
                 pos_2d_pixel_space = image_coordinates(pos_2d, w=cam['res_w'], h=cam['res_h'])
-                pos_2d_pixel_space = normalize_screen_coordinates(pos_2d_pixel_space, w=cam['res_w'], h=cam['res_h'])
+
+                # Rescale to bounding box
+                for i, pose in enumerate(pos_2d_pixel_space) : # Iterate through frames
+                    (top, left, bottom, right) = bb_pose[subject][folder_action][cam['id']][i]
+
+                    pose[:, 0] -= left
+                    pose[:, 1] -= top
+
+                pos_2d_pixel_space = normalize_screen_coordinates(pos_2d_pixel_space, w=right-left, h=bottom-top)
                 positions_2d.append(pos_2d_pixel_space.astype('float32'))
     
             anim['positions_3d'] = positions_3d
@@ -282,6 +309,8 @@ def create_2d_data(data_path, dataset):
     keypoints = np.load(data_path, allow_pickle=True)
     keypoints = keypoints['positions_2d'].item()
 
+    bb_pose = np.load("./data/bboxes-Human36M-GT.npy", allow_pickle=True).item()
+
     ### GJ: adjust the length of 2d data ###
     for subject in dataset.subjects():
         for action in dataset[subject].keys():
@@ -293,12 +322,35 @@ def create_2d_data(data_path, dataset):
 
 
     for subject in keypoints.keys():
+        subject_mapping = {v: k for k, v in mapping[subject].items()}
         for action in keypoints[subject]:
-            for cam_idx, kps in enumerate(keypoints[subject][action]):
-                # Normalize camera frame
-                cam = dataset.cameras()[subject][cam_idx]
-                kps[..., 1:3] = normalize_screen_coordinates(kps[..., 1:3], w=cam['res_w'], h=cam['res_h'])
-                keypoints[subject][action][cam_idx] = kps
+            
+            # Action in bound_box_file
+            if subject == 'S1' and 'Photo' in action:
+                folder_action = action.split(' ')[0] + '-' + subject_mapping[action.replace('Photo', 'TakingPhoto')][1]
+            elif subject == 'S1' and 'WalkDog' in action:
+                folder_action = action.split(' ')[0] + '-' + subject_mapping[action.replace('WalkDog', 'WalkingDog')][1]
+            else:
+                folder_action = action.split(' ')[0] + '-' + subject_mapping[action][1]
+            if 'WalkDog' in folder_action:
+                folder_action = folder_action.replace('WalkDog', 'WalkingDog')
+            elif 'Photo' in folder_action:
+                folder_action = folder_action.replace('Photo', 'TakingPhoto')
+            elif 'WalkTogether' in folder_action:
+                folder_action = folder_action.replace('WalkTogether', 'WalkingTogether')
+
+            cameras = ['54138969', '55011271', '58860488', '60457274']
+            for i, cam in enumerate(cameras):
+                for f_idx, kps in enumerate(keypoints[subject][action][i]):
+                    (top, left, bottom, right) = bb_pose[subject][folder_action][cam][f_idx]
+                    kps[:, :, 1:3] = normalize_screen_coordinates(kps[:, :, 1:3], w=right-left, h=bottom-top)
+                    keypoints[subject][action][i][f_idx] = kps
+
+            # for cam_idx, kps in enumerate(keypoints[subject][action]):
+            #     # Normalize camera frame
+            #     cam = dataset.cameras()[subject][cam_idx]
+            #     kps[..., 1:3] = normalize_screen_coordinates(kps[..., 1:3], w=cam['res_w'], h=cam['res_h'])
+            #     keypoints[subject][action][cam_idx] = kps
 
     return keypoints
 
