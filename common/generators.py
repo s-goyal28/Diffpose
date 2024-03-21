@@ -11,10 +11,10 @@ from PIL import Image
 
 
 class PoseGenerator_gmm(Dataset):
-    def __init__(self, poses_3d, poses_2d_gmm, actions, camerapara, image_paths, image_processor):
-        assert poses_3d is not None
+    def __init__(self, poses_2d_gt, poses_2d_gmm, actions, camerapara, image_paths, image_processor):
+        assert poses_2d_gt is not None
 
-        self._poses_3d = np.concatenate(poses_3d)
+        self._poses_2d_gt = np.concatenate(poses_2d_gt)
         self._poses_2d_gmm = np.concatenate(poses_2d_gmm)
         self._actions = reduce(lambda x, y: x + y, actions)
         self._camerapara = np.concatenate(camerapara)
@@ -23,16 +23,19 @@ class PoseGenerator_gmm(Dataset):
         self.image_paths = image_paths # ALready flattened on subjects, actions , cameras
         self.image_processor = image_processor
 
-        self._poses_3d[:,:,:] = self._poses_3d[:,:,:]-self._poses_3d[:,:1,:]
+        self.image_paths = image_paths # ALready flattened on subjects, actions , cameras
+        self.image_processor = image_processor
 
-        print(len(image_paths), self._poses_3d.shape[0])
-        assert self._poses_3d.shape[0] == self._poses_2d_gmm.shape[0] and self._poses_3d.shape[0] == len(self._actions) == len(image_paths)
+        self._poses_2d_gt[:,:,:] = self._poses_2d_gt[:,:,:]-self._poses_2d_gt[:,:1,:]
+
+        print(len(image_paths), self._poses_2d_gt.shape[0])
+        assert self._poses_2d_gt.shape[0] == self._poses_2d_gmm.shape[0] and self._poses_3d.shape[0] == len(self._actions) == len(image_paths)
         print('Generating {} poses...'.format(len(self._actions)))
 
         self.bb_pose = np.load("./data/bboxes-Human36M-GT.npy", allow_pickle=True).item()
 
     def __getitem__(self, index):
-        out_pose_2d = self._poses_3d[index][:,:2]
+        out_pose_2d = self._poses_2d_gt[index]
         out_pose_2d_gmm = self._poses_2d_gmm[index]
         out_action = self._actions[index]
         out_camerapara = self._camerapara[index]

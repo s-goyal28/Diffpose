@@ -7,7 +7,8 @@ import numpy as np
 from boto3.session import Session as BotoSession
 from botocore.exceptions import ClientError
 
-from .camera import world_to_camera, normalize_screen_coordinates
+from .camera import world_to_camera, normalize_screen_coordinates, image_coordinates, project_to_2d
+from .utils import wrap
 
 camera_dict = {
     '54138969': [2.2901, 2.2876, 0.0251, 0.0289],
@@ -240,15 +241,22 @@ def read_3d_data_me(dataset):
             anim = dataset[subject][action]
 
             positions_3d = []
+            positions_2d = []
             camerad_para = []
             for cam in anim['cameras']:
                 pos_3d = world_to_camera(anim['positions'], R=cam['orientation'], t=cam['translation'])
                 # pos_3d[:, :] -= pos_3d[:, :1]  # Remove global offset
                 positions_3d.append(pos_3d)
                 camerad_para.append(camera_dict[cam['id']])
+
+                pos_2d = wrap(project_to_2d, True, pos_3d, cam['intrinsic'])
+                pos_2d_pixel_space = image_coordinates(pos_2d, w=cam['res_w'], h=cam['res_h'])
+                pos_2d_pixel_space = normalize_screen_coordinates(pos_2d_pixel_space, w=cam['res_w'], h=cam['res_h'])
+                positions_2d.append(pos_2d_pixel_space.astype('float32'))
     
             anim['positions_3d'] = positions_3d
             anim['camerad_para'] = camerad_para
+            anim['positions_2d'] = positions_2d
 
     return dataset
 
@@ -336,8 +344,8 @@ def fetch(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3d_p
     return out_poses_3d, out_poses_2d, out_actions
 
 
-def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3d_poses=True):
-    out_poses_3d = []
+def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_2d_poses_gt=True):
+    out_poses_2d_gt = []
     out_poses_2d = []
     out_actions = []
     out_camera_para = []
@@ -362,13 +370,13 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
                 out_actions.append([action.split(' ')[0]] * poses_2d[i].shape[0])
                 break
 
-            if parse_3d_poses and 'positions_3d' in dataset[subject][action]:
-                poses_3d = dataset[subject][action]['positions_3d']
+            if parse_2d_poses_gt and 'positions_2d' in dataset[subject][action]:
+                poses_2d_gt = dataset[subject][action]['positions_2d']
                 camera_para = dataset[subject][action]['camerad_para']
-                assert len(poses_3d) == len(poses_2d), 'Camera count mismatch'
-                for i in range(len(poses_3d)):  # Iterate across cameras
-                    out_poses_3d.append(poses_3d[i])
-                    out_camera_para.append([camera_para[i]]* poses_3d[i].shape[0])
+                assert len(poses_2d_gt) == len(poses_2d), 'Camera count mismatch'
+                for i in range(len(poses_2d_gt)):  # Iterate across cameras
+                    out_poses_2d_gt.append(poses_2d_gt[i])
+                    out_camera_para.append([camera_para[i]]* poses_2d_gt[i].shape[0])
                     break
 
 
@@ -407,18 +415,18 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_3
                 break
             
 
-    if len(out_poses_3d) == 0:
-        out_poses_3d = None
+    if len(out_poses_2d_gt) == 0:
+        out_poses_2d_gt = None
 
     if stride > 1:
         # Downsample as requested
         for i in range(len(out_poses_2d)):
             out_poses_2d[i] = out_poses_2d[i][::stride]
             out_actions[i] = out_actions[i][::stride]
-            if out_poses_3d is not None:
-                out_poses_3d[i] = out_poses_3d[i][::stride]
-                out_camera_para[i] = out_poses_3d[i][::stride]
+            if out_poses_2d_gt is not None:
+                out_poses_2d_gt[i] = out_poses_2d_gt[i][::stride]
+                out_camera_para[i] = out_poses_2d_gt[i][::stride]
 
                 
                 
-    return out_poses_3d, out_poses_2d, out_actions, out_camera_para, out_image_paths
+    return out_poses_2d_gt, out_poses_2d, out_actions, out_camera_para, out_image_paths

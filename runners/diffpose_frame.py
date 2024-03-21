@@ -41,7 +41,7 @@ class Diffpose(object):
         self.model_var_type = config.model.var_type
         # GraFormer mask
         self.src_mask = torch.tensor([[[True, True, True, True, True, True, True, True, True, True,
-                                True, True, True, True, True, True, True]]]).to(device)
+                                True, True, True, True, True, True, True]]]).to(self.device)
         
         # Generate Diffusion sequence parameters
         betas = get_beta_schedule(
@@ -136,10 +136,10 @@ class Diffpose(object):
         
         # create dataloader
         if config.data.dataset == "human36m":
-            poses_train, poses_train_2d, actions_train, camerapara_train, out_image_paths_train\
+            poses_train_2d_gt, poses_train_2d, actions_train, camerapara_train, out_image_paths_train\
                 = fetch_me(self.subjects_train, self.dataset, self.keypoints_train, self.action_filter, stride)
             data_loader = train_loader = data.DataLoader(
-                PoseGenerator_gmm(poses_train, poses_train_2d, actions_train, camerapara_train, out_image_paths_train, self.image_processor),
+                PoseGenerator_gmm(poses_train_2d_gt, poses_train_2d, actions_train, camerapara_train, out_image_paths_train, self.image_processor),
                 batch_size=config.training.batch_size, shuffle=True,\
                     num_workers=config.training.num_workers, pin_memory=True)
         else:
