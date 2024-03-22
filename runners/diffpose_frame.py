@@ -80,7 +80,7 @@ class Diffpose(object):
                 print('==> Selected actions: {}'.format(self.action_filter))
 
             # Download Image data
-            download_data(TRAIN_SUBJECTS, TEST_SUBJECTS, False)
+            download_data(TRAIN_SUBJECTS, TEST_SUBJECTS, True)
 
         else:
             raise KeyError('Invalid dataset')

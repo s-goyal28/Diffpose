@@ -65,7 +65,7 @@ def download_data(train_subjects, test_subjects, all_data):
             process.join()
 
     else:
-            
+        for subject in train_subjects + test_subjects:
             # Expt run actions
             actions = ['Directions-1']
             for action in actions:
@@ -455,7 +455,6 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_2
             for i in range(len(poses_2d)):  # Iterate across cameras
                 out_poses_2d.append(poses_2d[i])
                 out_actions.append([action.split(' ')[0]] * poses_2d[i].shape[0])
-                break
 
             if parse_2d_poses_gt and 'positions_2d' in dataset[subject][action]:
                 poses_2d_gt = dataset[subject][action]['positions_2d']
@@ -464,7 +463,6 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_2
                 for i in range(len(poses_2d_gt)):  # Iterate across cameras
                     out_poses_2d_gt.append(poses_2d_gt[i])
                     out_camera_para.append([camera_para[i]]* poses_2d_gt[i].shape[0])
-                    break
 
 
             # Get image paths
@@ -499,7 +497,6 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_2
 
                 img_file_names = [f"{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}/" + "img_%06d.jpg" % (idx+1) for idx in indexes]
                 out_image_paths.extend(img_file_names)
-                break
             
 
     if len(out_poses_2d_gt) == 0:
