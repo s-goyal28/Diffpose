@@ -16,6 +16,7 @@ subprocess.check_call(
 )
 
 from runners.diffpose_frame import Diffpose
+from torch.distributed import init_process_group, destroy_process_group
 
 
 torch.set_printoptions(sci_mode=False)
@@ -170,6 +171,26 @@ def dict2namespace(config):
     return namespace
 
 
+
+def ddp_setup(rank, world_size):
+    """
+    Args:
+        rank: Unique identifier of each process
+        world_size: Total number of processes
+    """
+    
+    print("MPI :" ,torch.distributed.is_mpi_available())
+    print("NCCL :" ,torch.distributed.is_nccl_available())
+    print("GLOO :" ,torch.distributed.is_gloo_available())
+    
+    os.environ["MASTER_ADDR"] = "algo-1"
+    os.environ["MASTER_PORT"] = "12345"
+    init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    #init_process_group(backend="gloo", rank=rank, world_size=world_size)
+    #torch.cuda.set_device(rank)
+
+
+
 def main():
     
     args, config = parse_args_and_config()
@@ -177,14 +198,30 @@ def main():
     logging.info("Exp instance id = {}".format(os.getpid()))
     
     try:
+
+        # Setup Multi GPU
+        world_size = len(args.hosts)
+        os.environ["WORLD_SIZE"] = str(world_size)
+        rank = args.hosts.index(args.current_host)
+        os.environ["RANK"] = str(rank)
+
+        print("World Size", world_size)
+        print("RANK", rank)
+
+        ddp_setup(rank, world_size)
+        
+        
         runner = Diffpose(args, config)
         runner.create_diffusion_model(args.model_diff_path)
         runner.create_pose_model(args.model_pose_path)
         runner.prepare_data()
         if args.train:
-            runner.train()
+            runner.train(world_size, rank)
         else:
             _, _ = runner.test_hyber()
+
+        destroy_process_group()
+
     except Exception:
         logging.error(traceback.format_exc())
 

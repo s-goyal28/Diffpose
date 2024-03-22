@@ -65,7 +65,7 @@ def download_data(train_subjects, test_subjects, all_data):
             process.join()
 
     else:
-            
+        for subject in train_subjects + test_subjects:
             # Expt run actions
             actions = ['Directions-1']
             for action in actions:
