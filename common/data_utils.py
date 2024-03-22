@@ -31,6 +31,30 @@ def read_3d_data(dataset):
     return dataset
 
 
+def equilize_aspect_ratio(min_y, min_x, max_y, max_x):
+    current_aspect_ratio = (max_x - min_x) / (max_y - min_y)
+    desired_aspect_ratio = 1.0
+    
+    # Adjust the bounding box to match the desired aspect ratio
+    if current_aspect_ratio > desired_aspect_ratio:
+        # Increase the height of the bounding box
+        center_y = (min_y + max_y) / 2
+        new_height = (max_x - min_x) / desired_aspect_ratio
+        min_y = center_y - new_height / 2
+        max_y = center_y + new_height / 2
+    else:
+        # Increase the width of the bounding box
+        center_x = (min_x + max_x) / 2
+        new_width = (max_y - min_y) * desired_aspect_ratio
+        min_x = center_x - new_width / 2
+        max_x = center_x + new_width / 2
+        
+    return (min_y, min_x, max_y, max_x)
+
+def normalize_cordinates(X, min_y, min_x, max_y, max_x):
+    return ((X - [min_x, min_y]) / [(max_x - min_x), (max_y - min_y)]) *2 -1
+
+
 def read_3d_data_me(dataset):
     bb_pose = np.load("./data/bboxes-Human36M-GT.npy", allow_pickle=True).item()
     for subject in dataset.subjects():
@@ -73,8 +97,11 @@ def read_3d_data_me(dataset):
 
                     pose[:, 0] -= left
                     pose[:, 1] -= top
+                    
+                    (min_y, min_x, max_y, max_x) = equilize_aspect_ratio(0, 0, bottom - top, right - left)
 
-                pos_2d_pixel_space = normalize_screen_coordinates(pos_2d_pixel_space, w=right-left, h=bottom-top)
+                    pose[:, :] = normalize_cordinates(pose, min_y, min_x, max_y, max_x)
+                
                 positions_2d.append(pos_2d_pixel_space.astype('float32'))
     
             anim['positions_3d'] = positions_3d
@@ -139,7 +166,12 @@ def create_2d_data(data_path, dataset):
             for i, cam in enumerate(cameras):
                 for f_idx, kps in enumerate(keypoints[subject][action][i]):
                     (top, left, bottom, right) = bb_pose[subject][folder_action][cam][f_idx]
-                    kps[:, :, 1:3] = normalize_screen_coordinates(kps[:, :, 1:3], w=right-left, h=bottom-top)
+                    kps[:, :, 1] -= left
+                    kps[:, :, 2] -= top
+                    
+                    (min_y, min_x, max_y, max_x) = equilize_aspect_ratio(0, 0, bottom - top, right - left)
+                    
+                    kps[:, :, 1:3] = normalize_cordinates(kps[:, :, 1:3], min_y, min_x, max_y, max_x)
                     keypoints[subject][action][i][f_idx] = kps
 
             # for cam_idx, kps in enumerate(keypoints[subject][action]):
