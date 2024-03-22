@@ -29,7 +29,7 @@ class PoseGenerator_gmm(Dataset):
         self._poses_2d_gt[:,:,:] = self._poses_2d_gt[:,:,:]-self._poses_2d_gt[:,:1,:]
 
         print(len(image_paths), self._poses_2d_gt.shape[0])
-        assert self._poses_2d_gt.shape[0] == self._poses_2d_gmm.shape[0] and self._poses_3d.shape[0] == len(self._actions) == len(image_paths)
+        assert self._poses_2d_gt.shape[0] == self._poses_2d_gmm.shape[0] and self._poses_2d_gt.shape[0] == len(self._actions) == len(image_paths)
         print('Generating {} poses...'.format(len(self._actions)))
 
         self.bb_pose = np.load("./data/bboxes-Human36M-GT.npy", allow_pickle=True).item()
