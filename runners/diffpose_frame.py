@@ -288,17 +288,34 @@ class Diffpose(object):
                 input_noise_scale.to(self.device), input_2d.to(self.device), targets_2d.to(self.device)
 
             # build uvxyz
-            inputs_xyz = self.model_pose(input_2d, src_mask)
-            inputs_xy = inputs_xyz[:, : , :2]
+            #inputs_xyz = self.model_pose(input_2d, src_mask)
+            #inputs_xy = inputs_xyz[:, : , :2]
             #print("inputs_xy", inputs_xy.shape)
-            inputs_xy[:, :, :2] -= inputs_xy[:, :1, :2] 
+            #inputs_xy[:, :, :2] -= inputs_xy[:, :1, :2] 
+            
+            
+            # Build noisy pose
+            x = input_2d
+            e = torch.randn_like(x)
+            b = self.betas          
+            t = torch.tensor([20]).to(self.device)
+            #e = e*(target_noise_scale) Using 1 scale
+            a = (1-b).cumprod(dim=0).index_select(0, t).view(-1, 1, 1)
+            # generate x_t (refer to DDIM equation)
+            inputs_xy = x * a.sqrt() + e * (1.0 - a).sqrt()
+            inputs_xy[:, :, :] -= inputs_xy[:, :1, :] 
+
+            
             input_uvxy = torch.cat([input_2d,inputs_xy],dim=2)
+            
+            
+            #return input_2d, inputs_xy, targets_2d
                         
             # generate distribution
             input_uvxy = input_uvxy.repeat(test_times,1,1)
-            input_noise_scale = input_noise_scale.repeat(test_times,1,1)
+            #input_noise_scale = input_noise_scale.repeat(test_times,1,1)
             # select diffusion step
-            t = torch.ones(input_uvxy.size(0)).type(torch.LongTensor).to(self.device)*test_num_diffusion_timesteps
+            #t = torch.ones(input_uvxy.size(0)).type(torch.LongTensor).to(self.device)*test_num_diffusion_timesteps
             
             
             #print('Logging shapes')
@@ -308,10 +325,10 @@ class Diffpose(object):
             
             # prepare the diffusion parameters
             x = input_uvxy.clone()
-            e = torch.randn_like(input_uvxy)
-            b = self.betas   
-            e = e*input_noise_scale        
-            a = (1-b).cumprod(dim=0).index_select(0, t).view(-1, 1, 1)
+            # e = torch.randn_like(input_uvxy)
+            # b = self.betas   
+            # e = e*input_noise_scale        
+            # a = (1-b).cumprod(dim=0).index_select(0, t).view(-1, 1, 1)
             # x = x * a.sqrt() + e * (1.0 - a).sqrt()
             
             output_uvxy = generalized_steps(x, src_mask, seq, self.model_diff, self.betas, self.device, eta=self.args.eta)
