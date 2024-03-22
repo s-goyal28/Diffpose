@@ -7,6 +7,7 @@ import sys
 import os
 import torch
 import numpy as np
+import json
 
 
 import subprocess
@@ -77,7 +78,13 @@ def parse_args_and_config():
                     help='the number of test time steps')
     parser.add_argument('--test_num_diffusion_timesteps', default=500, type=int, metavar='N',
                     help='the number of test times')
-
+    
+    
+    # Multi GPU args
+    parser.add_argument("--hosts", type=list, default=json.loads(os.environ["SM_HOSTS"]))
+    parser.add_argument("--current-host", type=str, default=os.environ["SM_CURRENT_HOST"])
+    parser.add_argument("--num-gpus", type=int, default=os.environ["SM_NUM_GPUS"])
+    
     args = parser.parse_args()
     args.log_path = os.path.join(args.exp, args.doc)
 
