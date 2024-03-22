@@ -11,6 +11,8 @@ import tqdm
 import torch
 import torch.utils.data as data
 import torch.backends.cudnn as cudnn
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data.distributed import DistributedSampler
 
 
 from models.gcnpose import GCNpose, adj_mx_from_edges
@@ -95,12 +97,14 @@ class Diffpose(object):
                             [8, 14], [14, 15], [15, 16]], dtype=torch.long)
         adj = adj_mx_from_edges(num_pts=17, edges=edges, sparse=False)
         self.model_diff = GCNdiff(adj.to(self.device), config).to(self.device)
-        self.model_diff = torch.nn.DataParallel(self.model_diff)
+        #self.model_diff = torch.nn.DataParallel(self.model_diff)
         
         # load pretrained model
         if model_path:
             states = torch.load(model_path)
             self.model_diff.load_state_dict(states[0])
+
+        self.model_diff = DDP(self.model_diff)
             
     def create_pose_model(self, model_path = None):
         args, config = self.args, self.config
@@ -124,7 +128,7 @@ class Diffpose(object):
         else:
             logging.info('initialize model randomly')
 
-    def train(self):
+    def train(self, n_gpu, cur_rank):
         cudnn.benchmark = True
 
         args, config, src_mask = self.args, self.config, self.src_mask
@@ -138,10 +142,16 @@ class Diffpose(object):
         if config.data.dataset == "human36m":
             poses_train_2d_gt, poses_train_2d, actions_train, camerapara_train, out_image_paths_train\
                 = fetch_me(self.subjects_train, self.dataset, self.keypoints_train, self.action_filter, stride)
+            
+            dataset_class = PoseGenerator_gmm(poses_train_2d_gt, poses_train_2d, actions_train, camerapara_train, out_image_paths_train, self.image_processor)
+            train_sampler = DistributedSampler(
+                dataset_class, n_gpu, cur_rank
+            )
             data_loader = train_loader = data.DataLoader(
-                PoseGenerator_gmm(poses_train_2d_gt, poses_train_2d, actions_train, camerapara_train, out_image_paths_train, self.image_processor),
-                batch_size=config.training.batch_size, shuffle=True,\
-                    num_workers=config.training.num_workers, pin_memory=True)
+                dataset_class,
+                batch_size=config.training.batch_size, shuffle=False,\
+                    num_workers=config.training.num_workers, pin_memory=True,
+                    sampler=train_sampler)
         else:
             raise KeyError('Invalid dataset')
         
@@ -166,6 +176,8 @@ class Diffpose(object):
             self.model_diff.train()
             
             epoch_loss_diff = AverageMeter()
+
+            data_loader.sampler.set_epoch(epoch)
 
             for i, (targets_uvxy, targets_noise_scale, _, targets_2d, _, _, image_feats) in enumerate(data_loader):
                 data_time += time.time() - data_start
@@ -213,7 +225,7 @@ class Diffpose(object):
                 if self.config.model.ema:
                     ema_helper.update(self.model_diff)
                 
-                if i%100 == 0 and i != 0:
+                if cur_rank == 0 and i%100 == 0 and i != 0:
                     logging.info('| Epoch{:0>4d}: {:0>4d}/{:0>4d} | Step {:0>6d} | Data: {:.6f} | Loss: {:.6f} |'\
                         .format(epoch, i+1, len(data_loader), step, data_time, epoch_loss_diff.avg))
             
@@ -222,7 +234,7 @@ class Diffpose(object):
             if epoch % decay == 0:
                 lr_now = lr_decay(optimizer, epoch, lr_init, decay, gamma) 
                 
-            if epoch % 1 == 0:
+            if cur_rank == 0 and epoch % 1 == 0:
                 states = [
                     self.model_diff.state_dict(),
                     optimizer.state_dict(),
