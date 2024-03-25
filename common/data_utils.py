@@ -440,7 +440,7 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_2
     
     for subject in subjects:
         subject_mapping = {v: k for k, v in mapping[subject].items()}
-        for action in list(keypoints[subject].keys())[:1]:
+        for action in keypoints[subject].keys():
             if action_filter is not None:
                 found = False
                 for a in action_filter:
