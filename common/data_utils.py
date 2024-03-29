@@ -28,7 +28,10 @@ mapping = {'S1': {('1', '1'): '_ALL 1', ('1', '2'): '_ALL', ('2', '1'): 'Directi
 ##images_base_path = '/dataset/human36m/processed'
 
 # For downloading in Dataloader
-images_base_path = 'human36m/processed'
+# images_base_path = 'human36m/processed'
+
+# For Local GPU
+images_base_path = '/dataset/human36m/processed'
 
 
 def subprocess_call(action, subjects):
@@ -486,8 +489,8 @@ def fetch_me(subjects, dataset, keypoints, action_filter=None, stride=1, parse_2
             
             cameras = ['54138969', '55011271', '58860488', '60457274']
             for i, cam in enumerate(cameras):
-                #file_list = os.listdir(f"{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
-                file_list = boto_io.list_files(f"ml_forecasting/s.goyal/IISc/data/{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
+                file_list = os.listdir(f"{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
+                # file_list = boto_io.list_files(f"ml_forecasting/s.goyal/IISc/data/{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")
                 file_list = [file for file in file_list if file.split('/')[-1][0] != '.']
                 if len(file_list) != poses_2d[i].shape[0]:
                     print(f"ml_forecasting/s.goyal/IISc/data/{images_base_path}/{subject}/{folder_action}/imageSequence/{cam}")

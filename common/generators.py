@@ -60,10 +60,11 @@ class PoseGenerator_gmm(Dataset):
 
         # download and load image
         s3_path = f"s3://pi-expt-use1-dev/ml_forecasting/s.goyal/IISc/data/{self.image_paths[index]}"
-        local_path = f"/dataset/{self.image_paths[index]}"
+        local_path = f"{self.image_paths[index]}"
 
         if not os.path.exists(local_path):
-            subprocess.check_call(["aws", "s3", "cp", s3_path, local_path])
+            # subprocess.check_call(["aws", "s3", "cp", s3_path, local_path])
+            raise ValueError(f"{local_path} Path not found")
         image = Image.open(local_path)
         
         # Fetch bounding box
