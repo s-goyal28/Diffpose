@@ -73,7 +73,7 @@ class PoseGenerator_gmm(Dataset):
         camera = path_split[7]
         bb_index = int(path_split[8].split('.')[0].split('_')[1]) -1 
 
-        print("In get_item", subject, action, camera, bb_index)
+        #print("In get_item", subject, action, camera, bb_index)
 
         (top, left, bottom, right) = self.bb_pose[subject][action][camera][bb_index]
         crop_img = image.crop((left, top, right, bottom))
