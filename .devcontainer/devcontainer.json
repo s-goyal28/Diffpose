@@ -1,0 +1,44 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.245.0/containers/python-3
+{
+	"name": "ddpm_",
+	"dockerComposeFile": [
+		"docker-compose.yml"
+	],
+	"service": "ddpm",
+	"workspaceFolder": "/workspace",
+	"remoteUser": "vscode",
+
+	// Configure tool-specific properties.
+	"customizations": {
+		// Configure properties specific to VS Code.
+		"vscode": {
+			// Set *default* container specific settings.json values on container create.
+			"settings": {
+				"python.defaultInterpreterPath": "/usr/local/bin/python",
+				"python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
+				"python.formatting.blackPath": "/usr/local/py-utils/bin/black",
+				"python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf"
+			},
+			// Add the IDs of extensions you want installed when the container is created.
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"VisualStudioExptTeam.vscodeintellicode",
+				"ms-python.black-formatter",
+				"VisualStudioExptTeam.intellicode-api-usage-examples",
+				"ms-toolsai.jupyter",
+				"ms-toolsai.vscode-jupyter-cell-tags",
+				"ms-toolsai.jupyter-renderers",
+				"ms-toolsai.vscode-jupyter-slideshow",
+				"ms-python.pylint"
+
+			]
+		}
+	},
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	"forwardPorts": [8080,8000],
+	// Use 'postCreateCommand' to run commands after the container is created.
+	"postCreateCommand": "git config --global http.sslverify \"false\" "
+	
+}
